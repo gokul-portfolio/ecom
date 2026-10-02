@@ -12,6 +12,7 @@ export interface AdminTokenPayload extends JWTPayload {
   roleSlug: string;
   roleName: string;
   permissions: string[];
+  hasCompletedOnboarding: boolean;
 }
 
 export interface CustomerTokenPayload extends JWTPayload {

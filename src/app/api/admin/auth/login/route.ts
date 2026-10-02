@@ -141,6 +141,7 @@ export async function POST(request: NextRequest) {
       roleSlug: admin.role?.slug || "super_admin",
       roleName: admin.role?.name || "Super Administrator",
       permissions,
+      hasCompletedOnboarding: admin.hasCompletedOnboarding,
     });
 
     const redirectUrl = admin.hasCompletedOnboarding ? "/dashboard" : "/onboarding";

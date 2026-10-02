@@ -10,6 +10,8 @@ export async function middleware(request: NextRequest) {
   const isProtectedAdminRoute =
     pathname.startsWith("/admin") ||
     pathname.startsWith("/dashboard") ||
+    pathname.startsWith("/settings") ||
+    pathname.startsWith("/profile") ||
     pathname.startsWith("/departments") ||
     pathname.startsWith("/roles") ||
     pathname.startsWith("/onboarding") ||
@@ -27,7 +29,11 @@ export async function middleware(request: NextRequest) {
     if (token) {
       const payload = await verifyAdminToken(token);
       if (payload) {
-        // Already logged in, redirect straight to dashboard
+        // If not onboarded, redirect straight to onboarding
+        if (!payload.hasCompletedOnboarding) {
+          return NextResponse.redirect(new URL("/onboarding", request.url));
+        }
+        // Already logged in & onboarded, redirect straight to dashboard
         return NextResponse.redirect(new URL("/dashboard", request.url));
       }
     }
@@ -64,6 +70,28 @@ export async function middleware(request: NextRequest) {
       return response;
     }
 
+    // STRICT ONBOARDING ENFORCEMENT:
+    // If the admin has NOT completed onboarding, they CANNOT access any other page.
+    if (!payload.hasCompletedOnboarding) {
+      const isAllowedDuringOnboarding =
+        pathname === "/onboarding" ||
+        pathname.startsWith("/api/admin/onboarding") ||
+        pathname.startsWith("/api/admin/auth/logout") ||
+        pathname.startsWith("/api/admin/auth/me") ||
+        pathname.startsWith("/api/admin/media/upload");
+
+      if (!isAllowedDuringOnboarding) {
+        if (pathname.startsWith("/api/")) {
+          return NextResponse.json(
+            { success: false, error: "Onboarding required before accessing this resource." },
+            { status: 403 }
+          );
+        }
+        // Redirect to /onboarding
+        return NextResponse.redirect(new URL("/onboarding", request.url));
+      }
+    }
+
     // Clone headers to pass authenticated admin info downstream
     const requestHeaders = new Headers(request.headers);
     requestHeaders.set("x-admin-id", payload.adminId);
@@ -86,6 +114,8 @@ export const config = {
     "/admin/:path*",
     "/admin-login",
     "/dashboard/:path*",
+    "/settings/:path*",
+    "/profile/:path*",
     "/departments/:path*",
     "/roles/:path*",
     "/onboarding/:path*",

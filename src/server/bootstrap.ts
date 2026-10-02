@@ -58,6 +58,10 @@ export async function bootstrapSuperAdmin() {
 
     const passwordHash = await hashPassword(ROOT_PLAIN_PASSWORD);
 
+    // Verify if store settings have actually been onboarded by the user
+    const storeSettings = await prisma.storeSettings.findFirst();
+    const isStoreOnboarded = !!(storeSettings && storeSettings.isOnboarded);
+
     // Full AdminUser data payload (avatarUrl excluded as requested)
     const adminData = {
       email: ROOT_EMAIL,
@@ -72,7 +76,7 @@ export async function bootstrapSuperAdmin() {
       lockedUntil: null,
       lastLoginAt: new Date(),
       lastLoginIp: "127.0.0.1",
-      hasCompletedOnboarding: true,
+      hasCompletedOnboarding: isStoreOnboarded,
     };
 
     if (!existingAdmin) {
@@ -91,7 +95,7 @@ export async function bootstrapSuperAdmin() {
       console.log(`  Department:   ${executiveDept.name} (${executiveDept.code})`);
       console.log(`  Role:         ${superAdminRole.name} (${superAdminRole.slug})`);
       console.log(`  Permissions:  Full Wildcard [*]`);
-      console.log(`  Onboarding:   Completed (true)`);
+      console.log(`  Onboarding:   ${isStoreOnboarded ? "Completed (true)" : "Pending (false - First-time login required)"}`);
       console.log(`========================================================`);
     } else {
       const updated = await prisma.adminUser.update({
@@ -108,6 +112,7 @@ export async function bootstrapSuperAdmin() {
       console.log(`  Avatar:       [Excluded as requested: null]`);
       console.log(`  Department:   ${executiveDept.name}`);
       console.log(`  Role:         ${superAdminRole.name}`);
+      console.log(`  Onboarding:   ${isStoreOnboarded ? "Completed (true)" : "Pending (false - First-time login required)"}`);
       console.log(`========================================================`);
     }
   } catch (error) {

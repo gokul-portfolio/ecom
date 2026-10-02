@@ -55,6 +55,15 @@ export function AdminAuthProvider({ children }: { children: React.ReactNode }) {
         const json = await res.json();
         if (json.success && json.user) {
           setAdmin(json.user);
+          // If onboarding is not completed, strictly redirect away from admin pages to /onboarding
+          if (
+            !json.user.hasCompletedOnboarding &&
+            typeof window !== "undefined" &&
+            window.location.pathname !== "/onboarding" &&
+            !window.location.pathname.startsWith("/admin-login")
+          ) {
+            router.replace("/onboarding");
+          }
           return;
         }
       }

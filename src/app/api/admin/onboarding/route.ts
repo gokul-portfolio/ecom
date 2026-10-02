@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
-import { verifyAdminToken } from "@/lib/auth/jwt";
+import { verifyAdminToken, signAdminToken } from "@/lib/auth/jwt";
 
 const onboardingSchema = z.object({
   companyName: z.string().min(2, "Company name must be at least 2 characters"),
@@ -136,11 +136,26 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    return NextResponse.json({
+    const updatedToken = await signAdminToken({
+      ...payload,
+      hasCompletedOnboarding: true,
+    });
+
+    const response = NextResponse.json({
       success: true,
       message: "Store onboarding successfully completed!",
       data: settings,
     });
+
+    response.cookies.set("admin_token", updatedToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      path: "/",
+      maxAge: 60 * 60 * 8,
+    });
+
+    return response;
   } catch (error) {
     console.error("[ONBOARDING_API_ERROR]", error);
     return NextResponse.json(

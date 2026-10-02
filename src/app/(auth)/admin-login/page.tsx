@@ -114,10 +114,9 @@ function AdminLoginForm() {
       const res = await login(email.trim(), password);
 
       if (res.success) {
-        const destination =
-          callbackUrl === "/dashboard" && res.redirectUrl
-            ? res.redirectUrl
-            : callbackUrl;
+        // If not onboarded, MUST go to /onboarding
+        const isNotOnboarded = res.redirectUrl === "/onboarding";
+        const destination = isNotOnboarded ? "/onboarding" : (callbackUrl || res.redirectUrl || "/dashboard");
         router.push(destination);
       } else {
         const serverError = res.error || "Invalid email or password. Please verify credentials.";
