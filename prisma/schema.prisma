@@ -1,0 +1,221 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/client"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// =================================================================
+// 1. DEPARTMENTS & ROLES MODULE
+// =================================================================
+
+model Department {
+  id          String       @id @default(uuid())
+  code        String       @unique // e.g. "EXECUTIVE", "FINANCE", "OPERATIONS", "SUPPORT"
+  name        String       // e.g. "Accounts & Finance"
+  description String?
+  isActive    Boolean      @default(true)
+
+  roles       Role[]
+  staff       AdminUser[]
+
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@index([code])
+}
+
+model Role {
+  id           String       @id @default(uuid())
+  slug         String       @unique // e.g. "super_admin", "accounts_manager", "store_manager"
+  name         String       // e.g. "Accounts Manager"
+  description  String?
+  departmentId String
+  department   Department   @relation(fields: [departmentId], references: [id], onDelete: Restrict)
+  isSystem     Boolean      @default(false) // true for SUPER_ADMIN (cannot be deleted)
+
+  // Granular Permission Matrix JSON: { "departments:read": true, "finance:read": true, ... }
+  permissions  Json
+
+  staff        AdminUser[]
+
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  @@index([departmentId])
+  @@index([slug])
+}
+
+// =================================================================
+// 2. ADMIN STAFF USERS (STRICT TABLE ISOLATION)
+// =================================================================
+
+enum AdminStatus {
+  ACTIVE
+  SUSPENDED
+}
+
+model AdminUser {
+  id                  String         @id @default(uuid())
+  email               String         @unique
+  passwordHash        String
+  fullName            String
+  phone               String?
+  avatarUrl           String?
+  status              AdminStatus    @default(ACTIVE)
+
+  // Foreign keys to Department and Role (Optional for root Super Admin without bootstrapped roles/departments)
+  departmentId        String?
+  department          Department?    @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+
+  roleId              String?
+  role                Role?          @relation(fields: [roleId], references: [id], onDelete: SetNull)
+
+  // Enterprise Security Controls
+  failedLoginAttempts Int            @default(0)
+  lockedUntil         DateTime?
+  lastLoginAt         DateTime?
+  lastLoginIp         String?
+  hasCompletedOnboarding Boolean        @default(false)
+
+  sessions            AdminSession[]
+  auditLogs           AdminAuditLog[]
+
+  createdAt           DateTime       @default(now())
+  updatedAt           DateTime       @updatedAt
+
+  @@index([email])
+  @@index([departmentId])
+  @@index([roleId])
+}
+
+model AdminSession {
+  id           String     @id @default(uuid())
+  adminId      String
+  admin        AdminUser  @relation(fields: [adminId], references: [id], onDelete: Cascade)
+  tokenHash    String     @unique
+  ipAddress    String?
+  userAgent    String?
+  expiresAt    DateTime
+  createdAt    DateTime   @default(now())
+
+  @@index([adminId])
+  @@index([tokenHash])
+}
+
+model AdminAuditLog {
+  id           String     @id @default(uuid())
+  adminId      String
+  admin        AdminUser  @relation(fields: [adminId], references: [id], onDelete: Cascade)
+  action       String     // e.g. "DEPARTMENT_CREATED", "ROLE_UPDATED", "STAFF_INVITED"
+  targetEntity String     // e.g. "Department", "Role", "AdminUser"
+  targetId     String?
+  ipAddress    String?
+  details      Json?      // Old state vs New state snapshot
+  createdAt    DateTime   @default(now())
+
+  @@index([adminId])
+  @@index([action])
+}
+
+// =================================================================
+// 3. STOREFRONT CUSTOMERS (ISOLATED ENTITY)
+// =================================================================
+
+model Customer {
+  id                 String            @id @default(uuid())
+  email              String            @unique
+  passwordHash       String?
+  firstName          String
+  lastName           String?
+  phone              String?
+  isEmailVerified    Boolean           @default(false)
+
+  sessions           CustomerSession[]
+  addresses          CustomerAddress[]
+
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+
+  @@index([email])
+}
+
+model CustomerSession {
+  id           String    @id @default(uuid())
+  customerId   String
+  customer     Customer  @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  tokenHash    String    @unique
+  expiresAt    DateTime
+  createdAt    DateTime  @default(now())
+
+  @@index([customerId])
+}
+
+model CustomerAddress {
+  id           String    @id @default(uuid())
+  customerId   String
+  customer     Customer  @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  type         String    // "SHIPPING" | "BILLING"
+  fullName     String
+  street       String
+  city         String
+  state        String
+  pincode      String
+  country      String    @default("IN")
+  isDefault    Boolean   @default(false)
+}
+
+// =================================================================
+// 4. STORE SETTINGS & COMPANY PROFILE (SINGLETON CONFIG)
+// =================================================================
+
+model StoreSettings {
+  id               String   @id @default("default-store-settings")
+  companyName      String   // e.g. "Noble Threads & Co."
+  legalName        String?  // Legal registered entity name
+  tagline          String?  // e.g. "Luxury Handcrafted Apparel"
+  
+  // Media Assets (Cloudinary CDN URLs)
+  logoUrl          String?
+  logoPublicId     String?
+  faviconUrl       String?
+  faviconPublicId  String?
+
+  // Contact & Support
+  supportEmail     String
+  supportPhone     String?
+  salesEmail       String?
+
+  // Legal & Taxation
+  taxNumber        String?  // GSTIN / Tax ID
+  panNumber        String?
+
+  // Currency & Localization
+  defaultCurrency  String   @default("INR")
+  currencySymbol   String   @default("₹")
+  timezone         String   @default("Asia/Kolkata")
+
+  // Physical Address
+  streetAddress    String?
+  city             String?
+  state            String?
+  pincode          String?
+  country          String   @default("India")
+
+  // Social Links
+  instagramUrl     String?
+  facebookUrl      String?
+  twitterUrl       String?
+  linkedinUrl      String?
+
+  // Wizard Completion Gate
+  isOnboarded      Boolean  @default(false)
+  onboardedAt      DateTime?
+
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+}
+

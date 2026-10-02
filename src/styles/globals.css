@@ -1,0 +1,87 @@
+@import "./tokens.css";
+
+/* Custom utility classes referencing centralized tokens */
+.bg-surface {
+  background-color: var(--color-surface);
+}
+
+.bg-surface-secondary {
+  background-color: var(--color-surface-secondary);
+}
+
+.border-subtle {
+  border-color: var(--color-border);
+}
+
+.text-primary-token {
+  color: var(--color-text-primary);
+}
+
+.text-secondary-token {
+  color: var(--color-text-secondary);
+}
+
+.text-muted-token {
+  color: var(--color-text-muted);
+}
+
+.gradient-navy {
+  background: var(--gradient-navy);
+}
+
+.gradient-gold {
+  background: var(--gradient-gold);
+}
+
+.shadow-custom-sm {
+  box-shadow: var(--shadow-sm);
+}
+
+.shadow-custom-md {
+  box-shadow: var(--shadow-md);
+}
+
+.shadow-custom-gold {
+  box-shadow: var(--shadow-gold);
+}
+
+/* Custom scrollbars for clean admin interfaces */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+.sidebar-scroll::-webkit-scrollbar-thumb {
+  background: #1e293b;
+}
+
+.sidebar-scroll::-webkit-scrollbar-thumb:hover {
+  background: #334155;
+}
+
+/* Hide scrollbar completely utility */
+.no-scrollbar::-webkit-scrollbar,
+.scrollbar-none::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+
+.no-scrollbar,
+.scrollbar-none {
+  -ms-overflow-style: none !important;
+  scrollbar-width: none !important;
+}
