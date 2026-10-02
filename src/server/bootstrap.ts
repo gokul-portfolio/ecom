@@ -2,14 +2,51 @@ import { prisma } from "@/lib/prisma";
 import { hashPassword } from "@/lib/auth/security";
 
 /**
- * Initializes the root Super Admin on server boot if it doesn't already exist.
- * Department and Role bootstrapping are disabled as requested.
+ * Initializes Department, Role, and Root Super Admin on server boot.
+ * Populates all fields of AdminUser (except image/avatarUrl as requested).
  */
 export async function bootstrapSuperAdmin() {
   try {
-    const ROOT_EMAIL = "Admin@gmail.com";
+    const ROOT_EMAIL = "admin@gmail.com";
     const ROOT_PLAIN_PASSWORD = "Admin@123";
 
+    // 1. Ensure Default Department exists
+    const executiveDept = await prisma.department.upsert({
+      where: { code: "EXECUTIVE" },
+      update: {
+        name: "Executive Management",
+        description: "Executive administration and platform operations",
+        isActive: true,
+      },
+      create: {
+        code: "EXECUTIVE",
+        name: "Executive Management",
+        description: "Executive administration and platform operations",
+        isActive: true,
+      },
+    });
+
+    // 2. Ensure Default Super Admin Role exists
+    const superAdminRole = await prisma.role.upsert({
+      where: { slug: "super_admin" },
+      update: {
+        name: "Super Administrator",
+        description: "Full unrestricted platform administrator access",
+        departmentId: executiveDept.id,
+        isSystem: true,
+        permissions: ["*"],
+      },
+      create: {
+        slug: "super_admin",
+        name: "Super Administrator",
+        description: "Full unrestricted platform administrator access",
+        departmentId: executiveDept.id,
+        isSystem: true,
+        permissions: ["*"],
+      },
+    });
+
+    // 3. Find existing admin (case-insensitive check)
     const existingAdmin = await prisma.adminUser.findFirst({
       where: {
         email: {
@@ -19,38 +56,59 @@ export async function bootstrapSuperAdmin() {
       },
     });
 
+    const passwordHash = await hashPassword(ROOT_PLAIN_PASSWORD);
+
+    // Full AdminUser data payload (avatarUrl excluded as requested)
+    const adminData = {
+      email: ROOT_EMAIL,
+      passwordHash,
+      fullName: "System Super Admin",
+      phone: "+91 98765 43210",
+      avatarUrl: null, // Excluded image as requested
+      status: "ACTIVE" as const,
+      departmentId: executiveDept.id,
+      roleId: superAdminRole.id,
+      failedLoginAttempts: 0,
+      lockedUntil: null,
+      lastLoginAt: new Date(),
+      lastLoginIp: "127.0.0.1",
+      hasCompletedOnboarding: true,
+    };
+
     if (!existingAdmin) {
-      const passwordHash = await hashPassword(ROOT_PLAIN_PASSWORD);
-      await prisma.adminUser.create({
-        data: {
-          email: ROOT_EMAIL,
-          passwordHash,
-          fullName: "System Super Admin",
-          status: "ACTIVE",
-          hasCompletedOnboarding: false,
-        },
+      const created = await prisma.adminUser.create({
+        data: adminData,
       });
+
       console.log(`========================================================`);
-      console.log(`[BOOTSTRAP] Root Super Admin successfully initialized!`);
-      console.log(`  Email:    ${ROOT_EMAIL}`);
-      console.log(`  Password: ${ROOT_PLAIN_PASSWORD}`);
-      console.log(`  Role:     Super Administrator (Full System Access)`);
-      console.log(`  Notice:   Departments and roles bootstrapping skipped.`);
+      console.log(`[BOOTSTRAP] Super Admin successfully initialized with all details!`);
+      console.log(`  ID:           ${created.id}`);
+      console.log(`  Email:        ${created.email}`);
+      console.log(`  Password:     ${ROOT_PLAIN_PASSWORD}`);
+      console.log(`  Full Name:    ${created.fullName}`);
+      console.log(`  Phone:        ${created.phone}`);
+      console.log(`  Avatar:       [Excluded as requested: null]`);
+      console.log(`  Department:   ${executiveDept.name} (${executiveDept.code})`);
+      console.log(`  Role:         ${superAdminRole.name} (${superAdminRole.slug})`);
+      console.log(`  Permissions:  Full Wildcard [*]`);
+      console.log(`  Onboarding:   Completed (true)`);
       console.log(`========================================================`);
     } else {
-      // Ensure password and active status match the user's configuration
-      const passwordHash = await hashPassword(ROOT_PLAIN_PASSWORD);
-      await prisma.adminUser.update({
+      const updated = await prisma.adminUser.update({
         where: { id: existingAdmin.id },
-        data: {
-          email: ROOT_EMAIL,
-          passwordHash,
-          status: "ACTIVE",
-          failedLoginAttempts: 0,
-          lockedUntil: null,
-        },
+        data: adminData,
       });
-      console.log(`[BOOTSTRAP] Admin credentials verified and updated for: ${ROOT_EMAIL}`);
+
+      console.log(`========================================================`);
+      console.log(`[BOOTSTRAP] Existing Admin User updated with all details!`);
+      console.log(`  ID:           ${updated.id}`);
+      console.log(`  Email:        ${updated.email}`);
+      console.log(`  Full Name:    ${updated.fullName}`);
+      console.log(`  Phone:        ${updated.phone}`);
+      console.log(`  Avatar:       [Excluded as requested: null]`);
+      console.log(`  Department:   ${executiveDept.name}`);
+      console.log(`  Role:         ${superAdminRole.name}`);
+      console.log(`========================================================`);
     }
   } catch (error) {
     console.error("[BOOTSTRAP] Error during Super Admin initialization:", error);
