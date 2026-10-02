@@ -340,50 +340,87 @@ export default function DepartmentsPage() {
         description="Fill in department identifiers and operational status."
         size="md"
       >
-        <form onSubmit={handleSaveDepartment} className="space-y-4 text-left">
-          <FormField label="Department Code" required helperText="Uppercase unique code (e.g. FINANCE, OPERATIONS)">
-            <TextInput
-              placeholder="e.g. MARKETING"
-              value={formCode}
-              onChange={(e) => setFormCode(e.target.value.toUpperCase())}
-              disabled={drawerState.mode === "edit"}
-              required
-            />
-          </FormField>
+        <form onSubmit={handleSaveDepartment} className="space-y-5 text-left">
+          {/* Section 01: Department Identity */}
+          <div className="p-4 rounded-2xl bg-slate-50/70 dark:bg-slate-900/60 border border-slate-200/80 dark:border-slate-800/80 space-y-3.5">
+            <div className="flex items-center gap-2 pb-1 border-b border-slate-200/60 dark:border-slate-800/60">
+              <span className="w-5 h-5 rounded-md bg-amber-500/10 text-amber-600 dark:text-amber-400 font-bold text-[10px] flex items-center justify-center">
+                01
+              </span>
+              <h4 className="text-xs font-bold text-slate-900 dark:text-slate-100 uppercase tracking-wider">
+                Department Identity
+              </h4>
+            </div>
 
-          <FormField label="Department Name" required>
-            <TextInput
-              placeholder="e.g. Marketing & Growth"
-              value={formName}
-              onChange={(e) => setFormName(e.target.value)}
-              required
-            />
-          </FormField>
-
-          <FormField label="Description">
-            <TextArea
-              rows={3}
-              placeholder="Brief description of department scope and responsibilities..."
-              value={formDesc}
-              onChange={(e) => setFormDesc(e.target.value)}
-            />
-          </FormField>
-
-          {drawerState.mode === "edit" && (
-            <FormField label="Department Active Status">
-              <div className="flex items-center justify-between p-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-850">
-                <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">
-                  Enable active department status
-                </span>
-                <Switch
-                  checked={formIsActive}
-                  onCheckedChange={(val) => setFormIsActive(val)}
-                />
-              </div>
+            <FormField label="Department Name" required>
+              <TextInput
+                placeholder="e.g. Accounts & Financial Operations"
+                value={formName}
+                onChange={(e) => setFormName(e.target.value)}
+                required
+              />
             </FormField>
-          )}
 
-          <div className="pt-6 border-t border-slate-100 dark:border-slate-800 flex gap-2">
+            <FormField label="Department Code" required helperText="Unique uppercase identifier (e.g. FINANCE, LOGISTICS)">
+              <TextInput
+                placeholder="e.g. FINANCE"
+                value={formCode}
+                onChange={(e) => setFormCode(e.target.value.toUpperCase())}
+                disabled={drawerState.mode === "edit"}
+                required
+              />
+            </FormField>
+          </div>
+
+          {/* Section 02: Operational Scope */}
+          <div className="p-4 rounded-2xl bg-slate-50/70 dark:bg-slate-900/60 border border-slate-200/80 dark:border-slate-800/80 space-y-3.5">
+            <div className="flex items-center gap-2 pb-1 border-b border-slate-200/60 dark:border-slate-800/60">
+              <span className="w-5 h-5 rounded-md bg-amber-500/10 text-amber-600 dark:text-amber-400 font-bold text-[10px] flex items-center justify-center">
+                02
+              </span>
+              <h4 className="text-xs font-bold text-slate-900 dark:text-slate-100 uppercase tracking-wider">
+                Operational Scope
+              </h4>
+            </div>
+
+            <FormField label="Description">
+              <TextArea
+                rows={3}
+                placeholder="Brief summary of department scope and responsibilities..."
+                value={formDesc}
+                onChange={(e) => setFormDesc(e.target.value)}
+              />
+            </FormField>
+          </div>
+
+          {/* Section 03: Operational Status */}
+          <div className="p-4 rounded-2xl bg-slate-50/70 dark:bg-slate-900/60 border border-slate-200/80 dark:border-slate-800/80 space-y-3.5">
+            <div className="flex items-center gap-2 pb-1 border-b border-slate-200/60 dark:border-slate-800/60">
+              <span className="w-5 h-5 rounded-md bg-amber-500/10 text-amber-600 dark:text-amber-400 font-bold text-[10px] flex items-center justify-center">
+                03
+              </span>
+              <h4 className="text-xs font-bold text-slate-900 dark:text-slate-100 uppercase tracking-wider">
+                Operational Status
+              </h4>
+            </div>
+
+            <div className="flex items-center justify-between p-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
+              <div>
+                <p className="text-xs font-semibold text-slate-800 dark:text-slate-200">
+                  Active Department
+                </p>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                  Inactive departments cannot have new roles or staff assigned
+                </p>
+              </div>
+              <Switch
+                checked={formIsActive}
+                onCheckedChange={(val) => setFormIsActive(val)}
+              />
+            </div>
+          </div>
+
+          <div className="pt-4 border-t border-slate-100 dark:border-slate-800 flex gap-2">
             <Button
               type="submit"
               variant="primary"

@@ -26,7 +26,41 @@ export async function bootstrapSuperAdmin() {
       },
     });
 
-    // 2. Ensure Default Super Admin Role exists
+    // 2. Ensure Baseline Departments & Roles exist
+    const financeDept = await prisma.department.upsert({
+      where: { code: "FINANCE" },
+      update: {},
+      create: {
+        code: "FINANCE",
+        name: "Accounts & Financial Operations",
+        description: "Billing, payment gateways, reconciliations, and tax compliance",
+        isActive: true,
+      },
+    });
+
+    const logisticsDept = await prisma.department.upsert({
+      where: { code: "LOGISTICS" },
+      update: {},
+      create: {
+        code: "LOGISTICS",
+        name: "Warehouse & Fulfillment",
+        description: "Stock intake, warehouse bins, picking, packing, and dispatch",
+        isActive: true,
+      },
+    });
+
+    const supportDept = await prisma.department.upsert({
+      where: { code: "SUPPORT" },
+      update: {},
+      create: {
+        code: "SUPPORT",
+        name: "Customer Care & Support",
+        description: "Customer service, return authorizations, tickets, and disputes",
+        isActive: true,
+      },
+    });
+
+    // Ensure Default Super Admin Role exists
     const superAdminRole = await prisma.role.upsert({
       where: { slug: "super_admin" },
       update: {
@@ -43,6 +77,46 @@ export async function bootstrapSuperAdmin() {
         departmentId: executiveDept.id,
         isSystem: true,
         permissions: ["*"],
+      },
+    });
+
+    // Ensure Standard Operational Roles exist
+    await prisma.role.upsert({
+      where: { slug: "store_manager" },
+      update: {},
+      create: {
+        slug: "store_manager",
+        name: "Operations & Store Manager",
+        description: "Oversees catalog, stock allocations, and order deliveries",
+        departmentId: executiveDept.id,
+        isSystem: false,
+        permissions: ["products:read", "products:write", "inventory:manage", "orders:read", "orders:write", "customers:read"],
+      },
+    });
+
+    await prisma.role.upsert({
+      where: { slug: "finance_lead" },
+      update: {},
+      create: {
+        slug: "finance_lead",
+        name: "Accounts & Finance Lead",
+        description: "Manages settlements, tax invoices, and customer refunds",
+        departmentId: financeDept.id,
+        isSystem: false,
+        permissions: ["finance:read", "finance:write", "invoices:manage", "orders:refund"],
+      },
+    });
+
+    await prisma.role.upsert({
+      where: { slug: "support_agent" },
+      update: {},
+      create: {
+        slug: "support_agent",
+        name: "Customer Support Specialist",
+        description: "Customer interactions, order queries, and return handling",
+        departmentId: supportDept.id,
+        isSystem: false,
+        permissions: ["orders:read", "customers:read", "orders:refund"],
       },
     });
 

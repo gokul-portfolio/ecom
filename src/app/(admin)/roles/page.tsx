@@ -428,61 +428,77 @@ export default function RolesPage() {
         size="lg"
       >
         <form onSubmit={handleSaveRole} className="space-y-5 text-left">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <FormField label="Role Title" required>
-              <TextInput
-                placeholder="e.g. Inventory Supervisor"
-                value={formName}
-                onChange={(e) => {
-                  setFormName(e.target.value);
-                  if (drawerState.mode === "create") {
-                    setFormSlug(e.target.value.toLowerCase().replace(/[^a-z0-9]/g, "_"));
-                  }
-                }}
-                required
+          {/* Section 01: Role Definition */}
+          <div className="p-4 rounded-2xl bg-slate-50/70 dark:bg-slate-900/60 border border-slate-200/80 dark:border-slate-800/80 space-y-3.5">
+            <div className="flex items-center gap-2 pb-1 border-b border-slate-200/60 dark:border-slate-800/60">
+              <span className="w-5 h-5 rounded-md bg-amber-500/10 text-amber-600 dark:text-amber-400 font-bold text-[10px] flex items-center justify-center">
+                01
+              </span>
+              <h4 className="text-xs font-bold text-slate-900 dark:text-slate-100 uppercase tracking-wider">
+                Role Definition & Department
+              </h4>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+              <FormField label="Role Title" required>
+                <TextInput
+                  placeholder="e.g. Inventory Supervisor"
+                  value={formName}
+                  onChange={(e) => {
+                    setFormName(e.target.value);
+                    if (drawerState.mode === "create") {
+                      setFormSlug(e.target.value.toLowerCase().replace(/[^a-z0-9]/g, "_"));
+                    }
+                  }}
+                  required
+                />
+              </FormField>
+
+              <FormField label="Role Slug" required helperText="Lowercase identifier">
+                <TextInput
+                  placeholder="e.g. inventory_supervisor"
+                  value={formSlug}
+                  onChange={(e) => setFormSlug(e.target.value.toLowerCase())}
+                  disabled={drawerState.mode === "edit"}
+                  required
+                />
+              </FormField>
+            </div>
+
+            <FormField label="Department Assignment" required>
+              <SelectInput
+                options={departmentsList.map((d) => ({
+                  value: d.id,
+                  label: `${d.name} (${d.code})`,
+                }))}
+                value={formDeptId}
+                onChange={(e) => setFormDeptId(e.target.value)}
               />
             </FormField>
 
-            <FormField label="Role Slug" required helperText="Lowercase identifier">
-              <TextInput
-                placeholder="e.g. inventory_supervisor"
-                value={formSlug}
-                onChange={(e) => setFormSlug(e.target.value.toLowerCase())}
-                disabled={drawerState.mode === "edit"}
-                required
+            <FormField label="Description">
+              <TextArea
+                rows={2}
+                placeholder="Scope of authority and duties assigned to this role..."
+                value={formDesc}
+                onChange={(e) => setFormDesc(e.target.value)}
               />
             </FormField>
           </div>
 
-          <FormField label="Department Assignment" required>
-            <SelectInput
-              options={departmentsList.map((d) => ({
-                value: d.id,
-                label: `${d.name} (${d.code})`,
-              }))}
-              value={formDeptId}
-              onChange={(e) => setFormDeptId(e.target.value)}
-            />
-          </FormField>
-
-          <FormField label="Description">
-            <TextArea
-              rows={2}
-              placeholder="Scope of authority and duties assigned to this role..."
-              value={formDesc}
-              onChange={(e) => setFormDesc(e.target.value)}
-            />
-          </FormField>
-
-          {/* Granular Permission Matrix */}
-          <div className="space-y-4 pt-2">
-            <div className="flex items-center justify-between pb-2 border-b border-slate-200 dark:border-slate-800">
-              <span className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
-                <Key className="w-3.5 h-3.5 text-indigo-500" />
-                Granular Permission Matrix
-              </span>
-              <span className="text-[11px] font-mono text-indigo-500 font-semibold">
-                {selectedPermissions.includes("*") ? "All Wildcard (*)" : `${selectedPermissions.length} active`}
+          {/* Section 02: Granular Permission Matrix */}
+          <div className="p-4 rounded-2xl bg-slate-50/70 dark:bg-slate-900/60 border border-slate-200/80 dark:border-slate-800/80 space-y-3.5">
+            <div className="flex items-center justify-between pb-1 border-b border-slate-200/60 dark:border-slate-800/60">
+              <div className="flex items-center gap-2">
+                <span className="w-5 h-5 rounded-md bg-amber-500/10 text-amber-600 dark:text-amber-400 font-bold text-[10px] flex items-center justify-center">
+                  02
+                </span>
+                <h4 className="text-xs font-bold text-slate-900 dark:text-slate-100 uppercase tracking-wider">
+                  Permissions Matrix
+                </h4>
+              </div>
+              <span className="text-[11px] font-mono text-amber-600 dark:text-amber-400 font-semibold">
+                {selectedPermissions.includes("*") ? "Wildcard Full Access (*)" : `${selectedPermissions.length} enabled`}
               </span>
             </div>
 
@@ -491,39 +507,60 @@ export default function RolesPage() {
                 This root system administrator role holds permanent wildcard access to all current and future platform modules.
               </div>
             ) : (
-              <div className="space-y-4 max-h-[340px] overflow-y-auto pr-1 scrollbar-thin">
-                {PERMISSION_GROUPS.map((group) => (
-                  <div
-                    key={group.category}
-                    className="p-3.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-850/50 space-y-2.5"
-                  >
-                    <span className="text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider block">
-                      {group.category}
-                    </span>
-                    <div className="space-y-2">
-                      {group.permissions.map((p) => {
-                        const isChecked = selectedPermissions.includes(p.key);
-                        return (
-                          <div
-                            key={p.key}
-                            className="flex items-center justify-between p-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200/60 dark:border-slate-800"
-                          >
-                            <div className="flex flex-col">
-                              <span className="text-xs font-semibold text-slate-800 dark:text-slate-200">
-                                {p.label}
-                              </span>
-                              <span className="text-[10px] font-mono text-slate-400">{p.key}</span>
+              <div className="space-y-3 max-h-[360px] overflow-y-auto pr-1 scrollbar-thin">
+                {PERMISSION_GROUPS.map((group) => {
+                  const allKeys = group.permissions.map((p) => p.key);
+                  const isAllChecked = allKeys.every((k) => selectedPermissions.includes(k));
+
+                  return (
+                    <div
+                      key={group.category}
+                      className="p-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 space-y-2.5 shadow-2xs"
+                    >
+                      <div className="flex items-center justify-between pb-1.5 border-b border-slate-100 dark:border-slate-800">
+                        <span className="text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                          {group.category}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (isAllChecked) {
+                              setSelectedPermissions((prev) => prev.filter((k) => !allKeys.includes(k)));
+                            } else {
+                              setSelectedPermissions((prev) => Array.from(new Set([...prev, ...allKeys])));
+                            }
+                          }}
+                          className="text-[11px] font-semibold text-amber-600 dark:text-amber-400 hover:underline cursor-pointer"
+                        >
+                          {isAllChecked ? "Deselect All" : "Select All"}
+                        </button>
+                      </div>
+
+                      <div className="space-y-1.5">
+                        {group.permissions.map((p) => {
+                          const isChecked = selectedPermissions.includes(p.key);
+                          return (
+                            <div
+                              key={p.key}
+                              className="flex items-center justify-between p-2 rounded-lg bg-slate-50 dark:bg-slate-850 border border-slate-200/60 dark:border-slate-800"
+                            >
+                              <div className="flex flex-col text-left">
+                                <span className="text-xs font-semibold text-slate-800 dark:text-slate-200">
+                                  {p.label}
+                                </span>
+                                <span className="text-[10px] font-mono text-slate-400">{p.key}</span>
+                              </div>
+                              <Switch
+                                checked={isChecked}
+                                onCheckedChange={() => togglePermission(p.key)}
+                              />
                             </div>
-                            <Switch
-                              checked={isChecked}
-                              onCheckedChange={() => togglePermission(p.key)}
-                            />
-                          </div>
-                        );
-                      })}
+                          );
+                        })}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
