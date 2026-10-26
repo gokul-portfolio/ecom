@@ -290,31 +290,7 @@ export function ShiftsClient({
             </p>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2.5">
-            <Link
-              href="/departments"
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition-colors"
-            >
-              <Building2 className="w-3.5 h-3.5 text-indigo-500" />
-              <span>Departments</span>
-            </Link>
-
-            <Link
-              href="/roles"
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition-colors"
-            >
-              <ShieldCheck className="w-3.5 h-3.5 text-indigo-500" />
-              <span>Roles</span>
-            </Link>
-
-            <Link
-              href="/permissions"
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition-colors"
-            >
-              <KeyRound className="w-3.5 h-3.5 text-indigo-500" />
-              <span>Access Control</span>
-            </Link>
-
+          <div className="flex items-center gap-2.5">
             {(hasPermission("shifts:write") ||
               hasPermission("departments:write") ||
               hasPermission("*")) && (
