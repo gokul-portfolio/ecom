@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useCallback, RefObject } from "react";
+import { useState, useEffect, useRef, useCallback, RefObject } from "react";
 
 /**
  * Supported focusable selectors for forms and interactive containers
@@ -83,16 +83,37 @@ export function useFormKeyboardNavigation<T extends HTMLElement = HTMLFormElemen
     const elements = Array.from(
       containerRef.current.querySelectorAll<HTMLElement>(customSelector)
     );
-    // Filter out invisible or hidden elements
+    // Filter out invisible, hidden or disabled elements
     return elements.filter((el) => {
+      if (el.hasAttribute("disabled") || el.getAttribute("aria-hidden") === "true") return false;
+      const rect = el.getBoundingClientRect();
+      if (rect.width === 0 && rect.height === 0) return false;
       const style = window.getComputedStyle(el);
-      return (
-        style.display !== "none" &&
-        style.visibility !== "hidden" &&
-        el.offsetParent !== null
-      );
+      return style.display !== "none" && style.visibility !== "hidden";
     });
   }, [customSelector]);
+
+  // Explicitly focus the first editable input field
+  const focusFirst = useCallback(() => {
+    const focusable = getFocusableElements();
+    const firstInput =
+      focusable.find(
+        (el) =>
+          (el instanceof HTMLInputElement && el.type !== "hidden" && el.type !== "submit" && el.type !== "button") ||
+          el instanceof HTMLSelectElement ||
+          el instanceof HTMLTextAreaElement
+      ) || focusable[0];
+
+    if (firstInput) {
+      firstInput.focus();
+      if (
+        firstInput instanceof HTMLInputElement &&
+        ["text", "number", "email", "tel"].includes(firstInput.type)
+      ) {
+        firstInput.select();
+      }
+    }
+  }, [getFocusableElements]);
 
   // Navigate focus to next or previous field
   const moveFocus = useCallback(
@@ -131,13 +152,10 @@ export function useFormKeyboardNavigation<T extends HTMLElement = HTMLFormElemen
   useEffect(() => {
     if (!autoFocusFirst) return;
     const timer = setTimeout(() => {
-      const focusable = getFocusableElements();
-      if (focusable.length > 0) {
-        focusable[0].focus();
-      }
-    }, 100);
+      focusFirst();
+    }, 60);
     return () => clearTimeout(timer);
-  }, [autoFocusFirst, getFocusableElements]);
+  }, [autoFocusFirst, focusFirst]);
 
   // Main keydown handler for the form
   const handleKeyDown = useCallback(
@@ -225,6 +243,7 @@ export function useFormKeyboardNavigation<T extends HTMLElement = HTMLFormElemen
     containerRef,
     handleKeyDown,
     getFocusableElements,
+    focusFirst,
   };
 }
 
@@ -351,44 +370,173 @@ export function useHotkeys(
 }
 
 /**
- * Table Row Arrow Keyboard Navigation Hook
- * Enables ArrowUp / ArrowDown navigation through table rows,
- * Enter to open/view, Space to select/checkbox.
+ * Enterprise Table Row Keyboard Navigation & Shortcuts Hook
+ * - ArrowUp / ArrowDown: Move row selection with visual highlight
+ * - Enter: View details modal
+ * - Ctrl+E / Cmd+E / 'e': Edit row
+ * - Delete / Ctrl+D / 'd': Delete confirmation dialog
+ * - Home / End: First / Last row
  */
 export interface TableKeyboardNavigationOptions<T> {
   data: T[];
-  onSelectRow?: (item: T, index: number) => void;
-  onActivateRow?: (item: T, index: number) => void;
   selectedIndex?: number;
+  onSelectRow?: (item: T, index: number) => void;
+  onView?: (item: T, index: number) => void;
+  onEdit?: (item: T, index: number) => void;
+  onDelete?: (item: T, index: number) => void;
+  onAdd?: () => void;
+  enableGlobalListener?: boolean;
 }
 
 export function useTableKeyboardNavigation<T>({
   data,
+  selectedIndex: controlledIndex,
   onSelectRow,
-  onActivateRow,
-  selectedIndex = 0,
+  onView,
+  onEdit,
+  onDelete,
+  onAdd,
+  enableGlobalListener = true,
 }: TableKeyboardNavigationOptions<T>) {
-  const handleTableKeyDown = useCallback(
-    (e: React.KeyboardEvent) => {
-      if (data.length === 0) return;
+  const [internalIndex, setInternalIndex] = useState<number>(0);
+  const activeIndex = controlledIndex !== undefined ? controlledIndex : internalIndex;
 
-      if (e.key === "ArrowDown") {
-        e.preventDefault();
-        const next = Math.min(selectedIndex + 1, data.length - 1);
-        onSelectRow?.(data[next], next);
-      } else if (e.key === "ArrowUp") {
-        e.preventDefault();
-        const prev = Math.max(selectedIndex - 1, 0);
-        onSelectRow?.(data[prev], prev);
-      } else if (e.key === "Enter") {
-        e.preventDefault();
-        if (data[selectedIndex]) {
-          onActivateRow?.(data[selectedIndex], selectedIndex);
-        }
+  // Keep index within bounds if data changes
+  useEffect(() => {
+    if (data.length === 0) {
+      setInternalIndex(0);
+    } else if (activeIndex >= data.length) {
+      const nextIdx = Math.max(0, data.length - 1);
+      setInternalIndex(nextIdx);
+      if (onSelectRow && data[nextIdx]) {
+        onSelectRow(data[nextIdx], nextIdx);
+      }
+    }
+  }, [data, activeIndex, onSelectRow]);
+
+  const selectIndex = useCallback(
+    (index: number) => {
+      if (data.length === 0) return;
+      const clamped = Math.max(0, Math.min(index, data.length - 1));
+      setInternalIndex(clamped);
+      if (onSelectRow && data[clamped]) {
+        onSelectRow(data[clamped], clamped);
       }
     },
-    [data, selectedIndex, onSelectRow, onActivateRow]
+    [data, onSelectRow]
   );
 
-  return { handleTableKeyDown };
+  const handleTableKeyDown = useCallback(
+    (e: KeyboardEvent | React.KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      const isTyping =
+        target instanceof HTMLInputElement ||
+        target instanceof HTMLTextAreaElement ||
+        target?.getAttribute("contenteditable") === "true";
+
+      // If typing in search or other inputs, allow normal typing unless Ctrl / Cmd is held
+      if (isTyping && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        return;
+      }
+
+      if (data.length === 0) return;
+
+      const currentItem = data[activeIndex];
+
+      // 0. Insert / Alt+N / 'a' (when not in input) / '+' -> Add / Create New Record
+      if (
+        e.key === "Insert" ||
+        (e.altKey && e.key.toLowerCase() === "n") ||
+        (!isTyping && (e.key === "+" || e.key.toLowerCase() === "a"))
+      ) {
+        if (onAdd) {
+          e.preventDefault();
+          onAdd();
+          return;
+        }
+      }
+
+      // 1. Arrow Down -> Next Row
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        selectIndex(activeIndex + 1);
+        return;
+      }
+
+      // 2. Arrow Up -> Previous Row
+      if (e.key === "ArrowUp") {
+        e.preventDefault();
+        selectIndex(activeIndex - 1);
+        return;
+      }
+
+      // 3. Home -> First Row
+      if (e.key === "Home") {
+        e.preventDefault();
+        selectIndex(0);
+        return;
+      }
+
+      // 4. End -> Last Row
+      if (e.key === "End") {
+        e.preventDefault();
+        selectIndex(data.length - 1);
+        return;
+      }
+
+      // 5. Enter -> View Row Details
+      if (e.key === "Enter" && !e.shiftKey && !e.ctrlKey) {
+        if (currentItem && onView) {
+          e.preventDefault();
+          onView(currentItem, activeIndex);
+        }
+        return;
+      }
+
+      // 6. Ctrl+E or Cmd+E or 'e' (when not in input) -> Edit Row
+      if (((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "e") || (!isTyping && e.key.toLowerCase() === "e")) {
+        if (currentItem && onEdit) {
+          e.preventDefault();
+          onEdit(currentItem, activeIndex);
+        }
+        return;
+      }
+
+      // 7. Delete or Ctrl+Delete or 'd' (when not in input) -> Delete Row
+      if (
+        e.key === "Delete" ||
+        ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "d") ||
+        (!isTyping && e.key.toLowerCase() === "d")
+      ) {
+        if (currentItem && onDelete) {
+          e.preventDefault();
+          onDelete(currentItem, activeIndex);
+        }
+        return;
+      }
+    },
+    [data, activeIndex, selectIndex, onView, onEdit, onDelete, onAdd]
+  );
+
+  // Global window listener for effortless table navigation when not typing in inputs
+  useEffect(() => {
+    if (!enableGlobalListener) return;
+
+    const onWindowKeyDown = (e: KeyboardEvent) => {
+      // Pause shortcut if any modal dialog is currently open
+      const modalOpen = document.querySelector('[role="dialog"]');
+      if (modalOpen) return;
+
+      handleTableKeyDown(e);
+    };
+
+    window.addEventListener("keydown", onWindowKeyDown);
+    return () => window.removeEventListener("keydown", onWindowKeyDown);
+  }, [enableGlobalListener, handleTableKeyDown]);
+
+  return {
+    selectedIndex: activeIndex,
+    selectIndex,
+    handleTableKeyDown,
+  };
 }

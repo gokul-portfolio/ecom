@@ -66,6 +66,12 @@ export const SHORTCUT_REGISTRY: ShortcutDefinition[] = [
 
   // Tables & Grids
   {
+    id: "table-create",
+    category: "Tables & Lists",
+    keys: ["Insert", "or", "Alt", "N"],
+    description: "Add / Create new record",
+  },
+  {
     id: "table-down",
     category: "Tables & Lists",
     keys: ["↓"],
@@ -82,6 +88,18 @@ export const SHORTCUT_REGISTRY: ShortcutDefinition[] = [
     category: "Tables & Lists",
     keys: ["Enter"],
     description: "View details of selected row",
+  },
+  {
+    id: "table-edit",
+    category: "Tables & Lists",
+    keys: ["Ctrl", "E"],
+    description: "Edit selected row item",
+  },
+  {
+    id: "table-delete",
+    category: "Tables & Lists",
+    keys: ["Delete"],
+    description: "Delete selected row item",
   },
   {
     id: "table-select",
@@ -120,5 +138,11 @@ export const SHORTCUT_REGISTRY: ShortcutDefinition[] = [
     category: "Function Keys",
     keys: ["F5"],
     description: "Refresh current data view",
+  },
+  {
+    id: "fn-shortcuts-drawer",
+    category: "Function Keys",
+    keys: ["F6"],
+    description: "Toggle Keyboard Shortcuts Drawer",
   },
 ];

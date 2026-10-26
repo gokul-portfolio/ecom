@@ -1,15 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { broadcastSocketEvent } from "@/lib/socket-notify";
-
-const roleCreateSchema = z.object({
-  name: z.string().min(3, "Role name must be at least 3 characters"),
-  slug: z.string().min(2, "Slug must be at least 2 characters").toLowerCase(),
-  departmentId: z.string().uuid("Please select a valid department"),
-  description: z.string().optional(),
-  permissions: z.array(z.string()).min(1, "Select at least one permission"),
-});
+import { roleSchema } from "@/lib/validations/role";
 
 export async function GET(request: NextRequest) {
   try {
@@ -88,7 +80,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const validation = roleCreateSchema.safeParse(body);
+    const validation = roleSchema.safeParse(body);
 
     if (!validation.success) {
       return NextResponse.json(
@@ -97,15 +89,28 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { name, slug, departmentId, description, permissions } = validation.data;
+    const { name, departmentId, description, permissions } = validation.data;
+    let slug = validation.data.slug?.trim().toLowerCase();
 
-    // Check slug collision
-    const existing = await prisma.role.findUnique({ where: { slug } });
-    if (existing) {
-      return NextResponse.json(
-        { success: false, error: `Role slug "${slug}" is already taken` },
-        { status: 409 }
-      );
+    // Auto-generate sequential slug if not provided
+    if (!slug) {
+      const count = await prisma.role.count();
+      let nextNum = count + 1;
+      let candidate = `role_${String(nextNum).padStart(3, "0")}`;
+      while (await prisma.role.findUnique({ where: { slug: candidate } })) {
+        nextNum++;
+        candidate = `role_${String(nextNum).padStart(3, "0")}`;
+      }
+      slug = candidate;
+    } else {
+      // Check slug collision
+      const existing = await prisma.role.findUnique({ where: { slug } });
+      if (existing) {
+        return NextResponse.json(
+          { success: false, error: `Role slug "${slug}" is already taken` },
+          { status: 409 }
+        );
+      }
     }
 
     // Check department existence
@@ -123,7 +128,7 @@ export async function POST(request: NextRequest) {
         slug,
         departmentId,
         description: description || null,
-        permissions,
+        permissions: permissions || [],
         isSystem: false,
       },
       include: {

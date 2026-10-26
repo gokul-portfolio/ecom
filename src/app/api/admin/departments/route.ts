@@ -1,13 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { broadcastSocketEvent } from "@/lib/socket-notify";
-
-const departmentCreateSchema = z.object({
-  code: z.string().min(2, "Code must be at least 2 characters").toUpperCase(),
-  name: z.string().min(3, "Name must be at least 3 characters"),
-  description: z.string().optional(),
-});
+import { departmentSchema } from "@/lib/validations/department";
 
 export async function GET(request: NextRequest) {
   try {
@@ -18,14 +12,10 @@ export async function GET(request: NextRequest) {
     const sortBy = searchParams.get("sortBy") || "createdAt";
     const sortOrder = (searchParams.get("sortOrder")?.toLowerCase() === "asc" ? "asc" : "desc") as "asc" | "desc";
 
-    // Dynamic search filter
+    // Search filter strictly by department name
     const where = search
       ? {
-          OR: [
-            { name: { contains: search, mode: "insensitive" as const } },
-            { code: { contains: search, mode: "insensitive" as const } },
-            { description: { contains: search, mode: "insensitive" as const } },
-          ],
+          name: { contains: search, mode: "insensitive" as const },
         }
       : {};
 
@@ -76,7 +66,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const validation = departmentCreateSchema.safeParse(body);
+    const validation = departmentSchema.safeParse(body);
 
     if (!validation.success) {
       return NextResponse.json(
@@ -85,15 +75,28 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { code, name, description } = validation.data;
+    const { name, description, isActive } = validation.data;
+    let code = validation.data.code?.trim().toUpperCase();
 
-    // Check duplicate code
-    const existing = await prisma.department.findUnique({ where: { code } });
-    if (existing) {
-      return NextResponse.json(
-        { success: false, error: `Department code "${code}" already exists` },
-        { status: 409 }
-      );
+    // If code is not provided, auto-generate sequential code: DEP001, DEP002, etc.
+    if (!code) {
+      const totalCount = await prisma.department.count();
+      let nextNum = totalCount + 1;
+      let candidate = `DEP${String(nextNum).padStart(3, "0")}`;
+      while (await prisma.department.findUnique({ where: { code: candidate } })) {
+        nextNum++;
+        candidate = `DEP${String(nextNum).padStart(3, "0")}`;
+      }
+      code = candidate;
+    } else {
+      // Check duplicate code if explicitly provided
+      const existing = await prisma.department.findUnique({ where: { code } });
+      if (existing) {
+        return NextResponse.json(
+          { success: false, error: `Department code "${code}" already exists` },
+          { status: 409 }
+        );
+      }
     }
 
     const department = await prisma.department.create({
@@ -101,7 +104,7 @@ export async function POST(request: NextRequest) {
         code,
         name,
         description: description || null,
-        isActive: true,
+        isActive: isActive !== undefined ? isActive : true,
       },
       include: {
         _count: {

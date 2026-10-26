@@ -10,6 +10,7 @@ export interface ServerToClientEvents {
   "system:ping": (data: { timestamp: number }) => void;
   "departments:changed": (data?: { action: string; id?: string }) => void;
   "roles:changed": (data?: { action: string; id?: string }) => void;
+  "shifts:changed": (data?: { action: string; id?: string }) => void;
 }
 
 export interface ClientToServerEvents {

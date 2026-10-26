@@ -4,13 +4,20 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { useSocketEvent } from "@/hooks/useSocket";
 import { useToast } from "@/components/ui/feedback/Toast";
 
-interface UseServerTableOptions {
+interface UseServerTableOptions<T> {
   endpoint: string;
   defaultSortBy?: string;
   defaultSortOrder?: "asc" | "desc";
   defaultPageSize?: number;
   socketEventName?: string;
   autoFetch?: boolean;
+  initialData?: T[];
+  initialPagination?: {
+    totalItems: number;
+    totalPages: number;
+    currentPage?: number;
+    pageSize?: number;
+  };
 }
 
 export interface ServerPaginationState {
@@ -22,6 +29,28 @@ export interface ServerPaginationState {
   hasPrevPage: boolean;
 }
 
+// Global In-Memory SWR Cache for 0ms page-flip and re-visit transitions
+const swrCache = new Map<
+  string,
+  {
+    data: unknown[];
+    pagination?: { totalItems: number; totalPages: number };
+    timestamp: number;
+  }
+>();
+
+export function invalidateServerTableCache(endpointPrefix?: string) {
+  if (!endpointPrefix) {
+    swrCache.clear();
+    return;
+  }
+  for (const key of swrCache.keys()) {
+    if (key.startsWith(endpointPrefix)) {
+      swrCache.delete(key);
+    }
+  }
+}
+
 export function useServerTable<T>({
   endpoint,
   defaultSortBy = "createdAt",
@@ -29,17 +58,48 @@ export function useServerTable<T>({
   defaultPageSize = 10,
   socketEventName,
   autoFetch = true,
-}: UseServerTableOptions) {
-  const [data, setData] = useState<T[]>([]);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
+  initialData,
+  initialPagination,
+}: UseServerTableOptions<T>) {
+  // If SSR initialData is supplied, seed the initial state and cache immediately (0ms loading)
+  const initialCacheKey = `${endpoint}?page=1&limit=${defaultPageSize}&sortBy=${defaultSortBy}&sortOrder=${defaultSortOrder}`;
+
+  const [data, setData] = useState<T[]>(() => {
+    if (initialData && initialData.length > 0) {
+      swrCache.set(initialCacheKey, {
+        data: initialData,
+        pagination: initialPagination,
+        timestamp: Date.now(),
+      });
+      return initialData;
+    }
+    const cached = swrCache.get(initialCacheKey);
+    return (cached?.data as T[]) || [];
+  });
+
+  const [isLoading, setIsLoading] = useState<boolean>(() => {
+    if (initialData && initialData.length > 0) return false;
+    const cached = swrCache.get(initialCacheKey);
+    return !cached;
+  });
+
+  const [isFetching, setIsFetching] = useState<boolean>(false);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
   // Pagination State
-  const [page, setPage] = useState<number>(1);
-  const [pageSize, setPageSize] = useState<number>(defaultPageSize);
-  const [totalItems, setTotalItems] = useState<number>(0);
-  const [totalPages, setTotalPages] = useState<number>(1);
+  const [page, setPage] = useState<number>(initialPagination?.currentPage ?? 1);
+  const [pageSize, setPageSize] = useState<number>(initialPagination?.pageSize ?? defaultPageSize);
+  const [totalItems, setTotalItems] = useState<number>(() => {
+    if (initialPagination?.totalItems !== undefined) return initialPagination.totalItems;
+    const cached = swrCache.get(initialCacheKey);
+    return cached?.pagination?.totalItems ?? 0;
+  });
+  const [totalPages, setTotalPages] = useState<number>(() => {
+    if (initialPagination?.totalPages !== undefined) return initialPagination.totalPages;
+    const cached = swrCache.get(initialCacheKey);
+    return cached?.pagination?.totalPages ?? 1;
+  });
 
   // Search & Sorting State
   const [search, setSearch] = useState<string>("");
@@ -49,29 +109,27 @@ export function useServerTable<T>({
 
   const toast = useToast();
   const abortControllerRef = useRef<AbortController | null>(null);
+  const isInitialMount = useRef<boolean>(true);
 
   // 300ms Search Debounce
   useEffect(() => {
     const handler = setTimeout(() => {
       setDebouncedSearch(search);
-      setPage(1); // Reset to page 1 on new search
+      setPage(1);
     }, 300);
 
     return () => clearTimeout(handler);
   }, [search]);
 
-  // Main Data Fetcher
-  const fetchData = useCallback(async () => {
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
-    }
-    const controller = new AbortController();
-    abortControllerRef.current = controller;
+  // Main Data Fetcher with Stale-While-Revalidate (SWR) logic
+  const fetchData = useCallback(
+    async (forceFresh = false) => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+      const controller = new AbortController();
+      abortControllerRef.current = controller;
 
-    setIsLoading(true);
-    setError(null);
-
-    try {
       const params = new URLSearchParams({
         page: page.toString(),
         limit: pageSize.toString(),
@@ -83,47 +141,91 @@ export function useServerTable<T>({
         params.set("search", debouncedSearch.trim());
       }
 
-      const res = await fetch(`${endpoint}?${params.toString()}`, {
-        signal: controller.signal,
-        cache: "no-store",
-      });
+      const cacheKey = `${endpoint}?${params.toString()}`;
+      const cached = swrCache.get(cacheKey);
 
-      if (!res.ok) {
-        throw new Error(`Server returned HTTP ${res.status}`);
-      }
-
-      const json = await res.json();
-
-      if (json.success) {
-        setData(json.data || []);
-        if (json.pagination) {
-          setTotalItems(json.pagination.totalItems ?? 0);
-          setTotalPages(json.pagination.totalPages ?? 1);
+      // SWR Step 1: If cached data exists and not forced fresh, serve cached data instantly (0ms latency)
+      if (cached && !forceFresh) {
+        setData(cached.data as T[]);
+        if (cached.pagination) {
+          setTotalItems(cached.pagination.totalItems);
+          setTotalPages(cached.pagination.totalPages);
         }
+        setIsLoading(false);
+        setIsFetching(true); // background revalidation indicator
       } else {
-        setError(json.error || "Failed to load records");
+        setIsLoading(true);
       }
-    } catch (err: unknown) {
-      if (err instanceof Error && err.name !== "AbortError") {
-        setError(err.message || "Failed to load data");
-      }
-    } finally {
-      setIsLoading(false);
-    }
-  }, [endpoint, page, pageSize, debouncedSearch, sortBy, sortOrder]);
 
-  // Trigger fetch on query param changes
+      setError(null);
+
+      try {
+        const res = await fetch(`${endpoint}?${params.toString()}`, {
+          signal: controller.signal,
+          cache: "no-store",
+        });
+
+        if (!res.ok) {
+          throw new Error(`Server returned HTTP ${res.status}`);
+        }
+
+        const json = await res.json();
+
+        if (json.success) {
+          const freshData = json.data || [];
+          const freshPagination = json.pagination
+            ? {
+                totalItems: json.pagination.totalItems ?? 0,
+                totalPages: json.pagination.totalPages ?? 1,
+              }
+            : undefined;
+
+          // Update SWR cache
+          swrCache.set(cacheKey, {
+            data: freshData,
+            pagination: freshPagination,
+            timestamp: Date.now(),
+          });
+
+          setData(freshData);
+          if (freshPagination) {
+            setTotalItems(freshPagination.totalItems);
+            setTotalPages(freshPagination.totalPages);
+          }
+        } else {
+          setError(json.error || "Failed to load records");
+        }
+      } catch (err: unknown) {
+        if (err instanceof Error && err.name !== "AbortError") {
+          setError(err.message || "Failed to load data");
+        }
+      } finally {
+        setIsLoading(false);
+        setIsFetching(false);
+      }
+    },
+    [endpoint, page, pageSize, debouncedSearch, sortBy, sortOrder]
+  );
+
+  // Trigger fetch on query param changes, skipping initial fetch if initialData was provided
   useEffect(() => {
-    if (autoFetch) {
-      fetchData();
-    }
-  }, [fetchData, autoFetch]);
+    if (!autoFetch) return;
 
-  // Real-time Socket.io Live Sync
+    if (isInitialMount.current && initialData && initialData.length > 0) {
+      isInitialMount.current = false;
+      return;
+    }
+
+    isInitialMount.current = false;
+    fetchData();
+  }, [fetchData, autoFetch, initialData]);
+
+  // Real-time Socket.io Live Sync with automatic cache invalidation
   if (socketEventName) {
     // eslint-disable-next-line react-hooks/rules-of-hooks
     useSocketEvent(socketEventName, () => {
-      fetchData();
+      invalidateServerTableCache(endpoint);
+      fetchData(true);
       toast.info("Live Update", "Records updated in real time via WebSocket.");
     });
   }
@@ -142,6 +244,7 @@ export function useServerTable<T>({
   return {
     data,
     isLoading,
+    isFetching,
     isSubmitting,
     setIsSubmitting,
     error,
@@ -158,7 +261,10 @@ export function useServerTable<T>({
     sortBy,
     sortOrder,
     toggleSort,
-    // Refetch
-    refetch: fetchData,
+    // Refetch (forces fresh cache invalidation)
+    refetch: () => {
+      invalidateServerTableCache(endpoint);
+      return fetchData(true);
+    },
   };
 }

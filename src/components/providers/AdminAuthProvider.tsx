@@ -79,14 +79,19 @@ export function AdminAuthProvider({ children }: { children: React.ReactNode }) {
     fetchSession();
   }, [fetchSession]);
 
-  // Permission evaluation helper
+  // Enterprise RBAC Permission evaluation helper with domain wildcard support
   const hasPermission = useCallback(
     (permission: string): boolean => {
       if (!admin) return false;
       const perms = admin.role.permissions || [];
-      // Wildcard grants all permissions
+      // Full system root access
       if (perms.includes("*")) return true;
-      return perms.includes(permission);
+      // Exact match
+      if (perms.includes(permission)) return true;
+      // Domain wildcard check (e.g. "departments:*" matches "departments:export")
+      const [domain] = permission.split(":");
+      if (domain && (perms.includes(`${domain}:*`) || perms.includes(`${domain}:manage`))) return true;
+      return false;
     },
     [admin]
   );

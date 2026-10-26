@@ -3,6 +3,8 @@ import {
   Settings,
   Building2,
   ShieldCheck,
+  KeyRound,
+  Clock,
 } from "lucide-react";
 import { NavigationGroup } from "@/types/navigation.types";
 
@@ -40,9 +42,21 @@ export const navigationConfig: NavigationGroup[] = [
       },
       {
         id: "roles",
-        title: "Roles & Permissions",
+        title: "Roles",
         href: "/roles",
         icon: ShieldCheck,
+      },
+      {
+        id: "shifts",
+        title: "Shifts",
+        href: "/shifts",
+        icon: Clock,
+      },
+      {
+        id: "permissions",
+        title: "Access Control",
+        href: "/permissions",
+        icon: KeyRound,
       },
     ],
   },

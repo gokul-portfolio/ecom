@@ -28,6 +28,24 @@ model Department {
   @@index([code])
 }
 
+model Shift {
+  id               String       @id @default(uuid())
+  code             String       @unique // e.g. "SHF001", "MORNING", "NIGHT"
+  name             String       // e.g. "Morning General Shift"
+  startTime        String       // e.g. "09:00"
+  endTime          String       // e.g. "18:00"
+  gracePeriodMins  Int          @default(15)
+  description      String?
+  isActive         Boolean      @default(true)
+
+  staff            AdminUser[]
+
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+
+  @@index([code])
+}
+
 model Role {
   id           String       @id @default(uuid())
   slug         String       @unique // e.g. "super_admin", "accounts_manager", "store_manager"
@@ -58,8 +76,23 @@ enum AdminStatus {
   SUSPENDED
 }
 
+enum EmploymentType {
+  FULL_TIME
+  PART_TIME
+  CONTRACT
+  INTERN
+}
+
+enum Gender {
+  MALE
+  FEMALE
+  OTHER
+  NOT_SPECIFIED
+}
+
 model AdminUser {
   id                  String         @id @default(uuid())
+  employeeCode        String?        @unique // e.g. "EMP001", "EMP002"
   email               String         @unique
   passwordHash        String
   fullName            String
@@ -67,12 +100,28 @@ model AdminUser {
   avatarUrl           String?
   status              AdminStatus    @default(ACTIVE)
 
-  // Foreign keys to Department and Role (Optional for root Super Admin without bootstrapped roles/departments)
+  // Professional Employment Details
+  designation         String?        // e.g. "Operations Lead", "Tax Specialist"
+  employmentType      EmploymentType @default(FULL_TIME)
+  joiningDate         DateTime?
+  salary              Float?
+
+  // Personal & Emergency Info
+  gender              Gender         @default(NOT_SPECIFIED)
+  dateOfBirth         DateTime?
+  emergencyContactName  String?
+  emergencyContactPhone String?
+  address             String?
+
+  // Foreign keys to Department, Role, and Shift (Optional for root Super Admin without bootstrapped roles/departments)
   departmentId        String?
   department          Department?    @relation(fields: [departmentId], references: [id], onDelete: SetNull)
 
   roleId              String?
   role                Role?          @relation(fields: [roleId], references: [id], onDelete: SetNull)
+
+  shiftId             String?
+  shift               Shift?         @relation(fields: [shiftId], references: [id], onDelete: SetNull)
 
   // Enterprise Security Controls
   failedLoginAttempts Int            @default(0)
@@ -87,9 +136,11 @@ model AdminUser {
   createdAt           DateTime       @default(now())
   updatedAt           DateTime       @updatedAt
 
+  @@index([employeeCode])
   @@index([email])
   @@index([departmentId])
   @@index([roleId])
+  @@index([shiftId])
 }
 
 model AdminSession {

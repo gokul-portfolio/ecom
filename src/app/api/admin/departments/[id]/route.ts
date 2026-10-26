@@ -1,13 +1,43 @@
 import { NextRequest, NextResponse } from "next/server";
-import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { broadcastSocketEvent } from "@/lib/socket-notify";
+import { departmentUpdateSchema } from "@/lib/validations/department";
 
-const departmentUpdateSchema = z.object({
-  name: z.string().min(3, "Name must be at least 3 characters").optional(),
-  description: z.string().optional().nullable(),
-  isActive: z.boolean().optional(),
-});
+export async function GET(
+  _request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await params;
+    const department = await prisma.department.findUnique({
+      where: { id },
+      include: {
+        _count: {
+          select: { staff: true, roles: true },
+        },
+      },
+    });
+
+    if (!department) {
+      return NextResponse.json(
+        { success: false, error: "Department not found" },
+        { status: 404 }
+      );
+    }
+
+    return NextResponse.json({
+      success: true,
+      data: department,
+    });
+  } catch (error) {
+    console.error("[DEPARTMENTS_GET_ONE_ERROR]", error);
+    return NextResponse.json(
+      { success: false, error: "Failed to fetch department" },
+      { status: 500 }
+    );
+  }
+}
+
 
 export async function PUT(
   request: NextRequest,

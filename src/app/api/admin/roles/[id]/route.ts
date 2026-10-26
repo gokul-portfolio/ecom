@@ -1,14 +1,43 @@
 import { NextRequest, NextResponse } from "next/server";
-import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { broadcastSocketEvent } from "@/lib/socket-notify";
+import { roleUpdateSchema } from "@/lib/validations/role";
 
-const roleUpdateSchema = z.object({
-  name: z.string().min(3, "Role name must be at least 3 characters").optional(),
-  departmentId: z.string().uuid().optional(),
-  description: z.string().optional().nullable(),
-  permissions: z.array(z.string()).min(1, "Select at least one permission").optional(),
-});
+export async function GET(
+  _request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await params;
+    const role = await prisma.role.findUnique({
+      where: { id },
+      include: {
+        department: true,
+        _count: {
+          select: { staff: true },
+        },
+      },
+    });
+
+    if (!role) {
+      return NextResponse.json(
+        { success: false, error: "Role not found" },
+        { status: 404 }
+      );
+    }
+
+    return NextResponse.json({
+      success: true,
+      data: role,
+    });
+  } catch (error) {
+    console.error("[ROLES_GET_ONE_ERROR]", error);
+    return NextResponse.json(
+      { success: false, error: "Failed to fetch role" },
+      { status: 500 }
+    );
+  }
+}
 
 export async function PUT(
   request: NextRequest,

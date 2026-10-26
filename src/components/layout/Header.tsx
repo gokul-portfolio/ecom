@@ -8,6 +8,7 @@ import { ThemeToggle } from "@/components/common/ThemeToggle";
 import { SocketStatusIndicator } from "@/components/common/SocketStatusIndicator";
 import { NotificationButton } from "./header/NotificationButton";
 import { UserProfileDropdown } from "./header/UserProfileDropdown";
+import { Keyboard } from "lucide-react";
 
 export function Header() {
   const pathname = usePathname();
@@ -40,10 +41,22 @@ export function Header() {
         </div>
       </div>
 
-      {/* Right Section: Real-time Socket Indicator, Theme Toggle, Notifications, Profile Dropdown */}
-      <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
+      {/* Right Section: Real-time Socket Indicator, Shortcuts, Theme Toggle, Notifications, Profile Dropdown */}
+      <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
         {/* Real-time WebSocket Live Status */}
         <SocketStatusIndicator />
+
+        {/* Keyboard Shortcuts Trigger Button (F6 / F1) */}
+        <button
+          type="button"
+          onClick={() => window.dispatchEvent(new CustomEvent("toggle-shortcuts-drawer"))}
+          title="Keyboard Shortcuts Cheat Sheet (F6 / F1)"
+          suppressHydrationWarning
+          className="p-2 rounded-xl text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800/80 transition-colors cursor-pointer"
+          aria-label="Keyboard Shortcuts"
+        >
+          <Keyboard className="w-4 h-4" />
+        </button>
 
         {/* Theme Toggle Component */}
         <ThemeToggle />

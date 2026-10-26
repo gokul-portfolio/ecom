@@ -94,6 +94,7 @@ export function DropdownTrigger({ children, className }: DropdownTriggerProps) {
       aria-haspopup="menu"
       aria-expanded={isOpen}
       tabIndex={0}
+      suppressHydrationWarning
       onKeyDown={(e) => {
         if (e.key === "Enter" || e.key === " ") {
           e.preventDefault();

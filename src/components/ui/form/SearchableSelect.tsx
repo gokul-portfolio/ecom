@@ -187,6 +187,7 @@ export const SearchableSelect = forwardRef<HTMLDivElement, SearchableSelectProps
           aria-expanded={isOpen}
           aria-haspopup="listbox"
           tabIndex={disabled ? -1 : 0}
+          suppressHydrationWarning
           onClick={() => !disabled && setIsOpen(!isOpen)}
           onKeyDown={handleTriggerKeyDown}
           className={cn(

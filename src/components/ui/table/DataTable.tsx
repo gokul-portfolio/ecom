@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   ColumnDef,
   flexRender,
@@ -26,11 +26,22 @@ import {
   ChevronsRight,
   Inbox,
   AlertCircle,
+  Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "../button/Button";
-import { Dropdown, DropdownTrigger, DropdownMenu, DropdownItem } from "../dropdown/Dropdown";
+import { Dropdown, DropdownTrigger, DropdownMenu } from "../dropdown/Dropdown";
 import { Pagination } from "./Pagination";
+
+export interface ServerPaginationConfig {
+  currentPage: number;
+  totalPages: number;
+  totalItems: number;
+  pageSize: number;
+  pageSizeOptions?: number[];
+  onPageChange: (page: number) => void;
+  onPageSizeChange?: (size: number) => void;
+}
 
 export interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];
@@ -42,6 +53,18 @@ export interface DataTableProps<TData, TValue> {
   onRowClick?: (row: TData) => void;
   bulkActions?: (selectedRows: TData[]) => React.ReactNode;
   exportFileName?: string;
+  serverPagination?: ServerPaginationConfig;
+  hidePagination?: boolean;
+  hideToolbar?: boolean;
+  searchValue?: string;
+  onSearchChange?: (value: string) => void;
+  minHeight?: string;
+  selectedIndex?: number;
+  onSelectRowIndex?: (index: number) => void;
+  sortBy?: string;
+  sortOrder?: "asc" | "desc";
+  onSort?: (columnKey: string) => void;
+  canExport?: boolean;
 }
 
 export function DataTable<TData, TValue>({
@@ -54,6 +77,18 @@ export function DataTable<TData, TValue>({
   onRowClick,
   bulkActions,
   exportFileName = "table-export",
+  serverPagination,
+  hidePagination = false,
+  hideToolbar = false,
+  searchValue,
+  onSearchChange,
+  minHeight = "min-h-[360px]",
+  selectedIndex,
+  onSelectRowIndex,
+  sortBy,
+  sortOrder,
+  onSort,
+  canExport = true,
 }: DataTableProps<TData, TValue>) {
   const [sorting, setSorting] = useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
@@ -71,6 +106,8 @@ export function DataTable<TData, TValue>({
       rowSelection,
       globalFilter,
     },
+    manualPagination: !!serverPagination,
+    manualSorting: !!onSort,
     enableRowSelection: true,
     onRowSelectionChange: setRowSelection,
     onSortingChange: setSorting,
@@ -78,7 +115,7 @@ export function DataTable<TData, TValue>({
     onColumnVisibilityChange: setColumnVisibility,
     onGlobalFilterChange: setGlobalFilter,
     getCoreRowModel: getCoreRowModel(),
-    getPaginationRowModel: getPaginationRowModel(),
+    ...(serverPagination ? {} : { getPaginationRowModel: getPaginationRowModel() }),
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
   });
@@ -115,18 +152,31 @@ export function DataTable<TData, TValue>({
   return (
     <div className="w-full space-y-3">
       {/* Table Toolbar */}
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
-        {/* Search */}
-        <div className="relative flex-1 max-w-sm">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-          <input
-            type="text"
-            value={globalFilter ?? ""}
-            onChange={(e) => setGlobalFilter(e.target.value)}
-            placeholder={searchPlaceholder}
-            className="w-full h-9 pl-9 pr-3 text-xs rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
-          />
-        </div>
+      {!hideToolbar && (
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+          {/* Search */}
+          <div className="relative flex-1 max-w-sm">
+            {isLoading ? (
+              <Loader2 className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-indigo-500 animate-spin" />
+            ) : (
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+            )}
+            <input
+              type="text"
+              suppressHydrationWarning
+              autoComplete="off"
+              value={onSearchChange ? (searchValue ?? "") : (globalFilter ?? "")}
+              onChange={(e) => {
+                if (onSearchChange) {
+                  onSearchChange(e.target.value);
+                } else {
+                  setGlobalFilter(e.target.value);
+                }
+              }}
+              placeholder={searchPlaceholder}
+              className="w-full h-9 pl-9 pr-3 text-xs rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+            />
+          </div>
 
         {/* Toolbar Controls */}
         <div className="flex items-center gap-2">
@@ -159,6 +209,7 @@ export function DataTable<TData, TValue>({
                         checked={column.getIsVisible()}
                         onChange={(e) => column.toggleVisibility(!!e.target.checked)}
                         className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                        suppressHydrationWarning
                       />
                       <span>{column.id}</span>
                     </label>
@@ -168,16 +219,19 @@ export function DataTable<TData, TValue>({
           </Dropdown>
 
           {/* Export to CSV */}
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={exportToCSV}
-            leftIcon={<Download className="w-3.5 h-3.5" />}
-          >
-            Export
-          </Button>
+          {canExport && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={exportToCSV}
+              leftIcon={<Download className="w-3.5 h-3.5" />}
+            >
+              Export
+            </Button>
+          )}
         </div>
       </div>
+      )}
 
       {/* Bulk Action Bar (when rows are selected) */}
       {selectedRows.length > 0 && (
@@ -200,7 +254,7 @@ export function DataTable<TData, TValue>({
 
       {/* Table Container */}
       <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 overflow-hidden shadow-sm">
-        <div className="overflow-x-auto">
+        <div className={cn("overflow-x-auto", minHeight)}>
           <table className="w-full text-left border-collapse">
             <thead>
               {table.getHeaderGroups().map((headerGroup) => (
@@ -209,8 +263,21 @@ export function DataTable<TData, TValue>({
                   className="border-b border-slate-100 dark:border-slate-800 bg-slate-50/75 dark:bg-slate-800/40"
                 >
                   {headerGroup.headers.map((header) => {
+                    const columnId = header.column.id || header.id;
                     const canSort = header.column.getCanSort();
-                    const isSorted = header.column.getIsSorted();
+                    const isServerSorted = sortBy === columnId;
+                    const serverSortDirection = isServerSorted ? sortOrder : undefined;
+                    const clientSortDirection = header.column.getIsSorted();
+                    const activeSortDirection = onSort ? serverSortDirection : clientSortDirection;
+
+                    const handleHeaderClick = () => {
+                      if (isLoading) return;
+                      if (onSort) {
+                        onSort(columnId);
+                      } else if (canSort) {
+                        header.column.getToggleSortingHandler()?.(null);
+                      }
+                    };
 
                     return (
                       <th
@@ -219,16 +286,19 @@ export function DataTable<TData, TValue>({
                       >
                         {header.isPlaceholder ? null : canSort ? (
                           <div
-                            onClick={header.column.getToggleSortingHandler()}
-                            className="flex items-center gap-1.5 cursor-pointer hover:text-slate-800 dark:hover:text-slate-200"
+                            onClick={handleHeaderClick}
+                            className={cn(
+                              "flex items-center gap-1.5 transition-colors",
+                              isLoading ? "opacity-60 cursor-not-allowed" : "cursor-pointer hover:text-slate-800 dark:hover:text-slate-200"
+                            )}
                           >
                             {flexRender(
                               header.column.columnDef.header,
                               header.getContext()
                             )}
-                            {isSorted === "asc" ? (
+                            {activeSortDirection === "asc" ? (
                               <ArrowUp className="w-3.5 h-3.5 text-indigo-500" />
-                            ) : isSorted === "desc" ? (
+                            ) : activeSortDirection === "desc" ? (
                               <ArrowDown className="w-3.5 h-3.5 text-indigo-500" />
                             ) : (
                               <ArrowUpDown className="w-3.5 h-3.5 text-slate-300 dark:text-slate-600" />
@@ -276,49 +346,76 @@ export function DataTable<TData, TValue>({
                   </td>
                 </tr>
               ) : (
-                table.getRowModel().rows.map((row) => (
-                  <tr
-                    key={row.id}
-                    onClick={() => onRowClick?.(row.original)}
-                    className={cn(
-                      "transition-colors",
-                      row.getIsSelected()
-                        ? "bg-indigo-50/40 dark:bg-indigo-950/20"
-                        : "hover:bg-slate-50/60 dark:hover:bg-slate-800/40",
-                      onRowClick && "cursor-pointer"
-                    )}
-                  >
-                    {row.getVisibleCells().map((cell) => (
-                      <td
-                        key={cell.id}
-                        className="px-4 py-3 text-xs text-slate-700 dark:text-slate-300 whitespace-nowrap"
-                      >
-                        {flexRender(
-                          cell.column.columnDef.cell,
-                          cell.getContext()
-                        )}
-                      </td>
-                    ))}
-                  </tr>
-                ))
+                table.getRowModel().rows.map((row, rIdx) => {
+                  const isHighlighted = selectedIndex !== undefined ? rIdx === selectedIndex : row.getIsSelected();
+
+                  return (
+                    <tr
+                      key={row.id}
+                      onClick={() => {
+                        if (isLoading) return;
+                        onSelectRowIndex?.(rIdx);
+                        onRowClick?.(row.original);
+                      }}
+                      className={cn(
+                        "transition-all duration-150",
+                        isHighlighted
+                          ? "bg-slate-100/90 dark:bg-slate-800/80 font-medium"
+                          : "hover:bg-slate-50/70 dark:hover:bg-slate-800/40",
+                        (onRowClick || onSelectRowIndex) && !isLoading && "cursor-pointer"
+                      )}
+                    >
+                      {row.getVisibleCells().map((cell) => (
+                        <td
+                          key={cell.id}
+                          className="px-4 py-3 text-xs text-slate-700 dark:text-slate-300 whitespace-nowrap"
+                        >
+                          {flexRender(
+                            cell.column.columnDef.cell,
+                            cell.getContext()
+                          )}
+                        </td>
+                      ))}
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>
         </div>
 
         {/* Polished, Accessible Table Pagination */}
-        <Pagination
-          currentPage={table.getState().pagination.pageIndex + 1}
-          totalPages={table.getPageCount() || 1}
-          totalItems={table.getFilteredRowModel().rows.length}
-          pageSize={table.getState().pagination.pageSize}
-          pageSizeOptions={[5, 10, 20, 50]}
-          onPageChange={(page) => table.setPageIndex(page - 1)}
-          onPageSizeChange={(size) => table.setPageSize(size)}
-          variant="numbered"
-          showPageSize={true}
-          showTotal={true}
-        />
+        {!hidePagination && (
+          serverPagination ? (
+            <Pagination
+              currentPage={serverPagination.currentPage}
+              totalPages={serverPagination.totalPages}
+              totalItems={serverPagination.totalItems}
+              pageSize={serverPagination.pageSize}
+              pageSizeOptions={serverPagination.pageSizeOptions ?? [5, 10, 20, 50]}
+              onPageChange={serverPagination.onPageChange}
+              onPageSizeChange={serverPagination.onPageSizeChange}
+              variant="numbered"
+              showPageSize={true}
+              showTotal={true}
+              disabled={isLoading}
+            />
+          ) : (
+            <Pagination
+              currentPage={table.getState().pagination.pageIndex + 1}
+              totalPages={table.getPageCount() || 1}
+              totalItems={table.getFilteredRowModel().rows.length}
+              pageSize={table.getState().pagination.pageSize}
+              pageSizeOptions={[5, 10, 20, 50]}
+              onPageChange={(page) => table.setPageIndex(page - 1)}
+              onPageSizeChange={(size) => table.setPageSize(size)}
+              variant="numbered"
+              showPageSize={true}
+              showTotal={true}
+              disabled={isLoading}
+            />
+          )
+        )}
       </div>
     </div>
   );
