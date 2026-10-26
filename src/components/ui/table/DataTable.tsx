@@ -384,36 +384,40 @@ export function DataTable<TData, TValue>({
           </table>
         </div>
 
-        {/* Polished, Accessible Table Pagination */}
+        {/* Polished, Accessible Table Pagination (Auto-hidden if records fit on 1 page) */}
         {!hidePagination && (
           serverPagination ? (
-            <Pagination
-              currentPage={serverPagination.currentPage}
-              totalPages={serverPagination.totalPages}
-              totalItems={serverPagination.totalItems}
-              pageSize={serverPagination.pageSize}
-              pageSizeOptions={serverPagination.pageSizeOptions ?? [5, 10, 20, 50]}
-              onPageChange={serverPagination.onPageChange}
-              onPageSizeChange={serverPagination.onPageSizeChange}
-              variant="numbered"
-              showPageSize={true}
-              showTotal={true}
-              disabled={isLoading}
-            />
+            (serverPagination.totalPages > 1 || (serverPagination.totalItems > (serverPagination.pageSize || 10))) && (
+              <Pagination
+                currentPage={serverPagination.currentPage}
+                totalPages={serverPagination.totalPages}
+                totalItems={serverPagination.totalItems}
+                pageSize={serverPagination.pageSize}
+                pageSizeOptions={serverPagination.pageSizeOptions ?? [5, 10, 20, 50]}
+                onPageChange={serverPagination.onPageChange}
+                onPageSizeChange={serverPagination.onPageSizeChange}
+                variant="numbered"
+                showPageSize={true}
+                showTotal={true}
+                disabled={isLoading}
+              />
+            )
           ) : (
-            <Pagination
-              currentPage={table.getState().pagination.pageIndex + 1}
-              totalPages={table.getPageCount() || 1}
-              totalItems={table.getFilteredRowModel().rows.length}
-              pageSize={table.getState().pagination.pageSize}
-              pageSizeOptions={[5, 10, 20, 50]}
-              onPageChange={(page) => table.setPageIndex(page - 1)}
-              onPageSizeChange={(size) => table.setPageSize(size)}
-              variant="numbered"
-              showPageSize={true}
-              showTotal={true}
-              disabled={isLoading}
-            />
+            ((table.getPageCount() || 1) > 1 || table.getFilteredRowModel().rows.length > table.getState().pagination.pageSize) && (
+              <Pagination
+                currentPage={table.getState().pagination.pageIndex + 1}
+                totalPages={table.getPageCount() || 1}
+                totalItems={table.getFilteredRowModel().rows.length}
+                pageSize={table.getState().pagination.pageSize}
+                pageSizeOptions={[5, 10, 20, 50]}
+                onPageChange={(page) => table.setPageIndex(page - 1)}
+                onPageSizeChange={(size) => table.setPageSize(size)}
+                variant="numbered"
+                showPageSize={true}
+                showTotal={true}
+                disabled={isLoading}
+              />
+            )
           )
         )}
       </div>

@@ -24,6 +24,7 @@ export interface PaginationProps {
   showTotal?: boolean;
   disabled?: boolean;
   className?: string;
+  autoHide?: boolean; // Automatically hide when 1 or fewer pages exist (default: true)
 }
 
 /**
@@ -42,7 +43,13 @@ export function Pagination({
   showTotal = true,
   disabled = false,
   className,
+  autoHide = true,
 }: PaginationProps) {
+  // Common Auto-hide: Hide pagination if only 1 page exists or records fit within single page
+  if (autoHide && totalPages <= 1 && (totalItems === undefined || totalItems <= pageSize)) {
+    return null;
+  }
+
   // Ensure valid safe page numbers
   const safeCurrentPage = Math.max(1, Math.min(currentPage, totalPages || 1));
   const safeTotalPages = Math.max(1, totalPages || 1);
