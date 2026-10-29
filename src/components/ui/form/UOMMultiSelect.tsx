@@ -258,6 +258,7 @@ export const UOMMultiSelect = forwardRef<HTMLDivElement, UOMMultiSelectProps>(
                       ) : (
                         <button
                           type="button"
+                          tabIndex={-1}
                           title="Click to set as Primary Unit"
                           onClick={(e) => handleSetPrimary(unitCode, e)}
                           className="text-slate-400 hover:text-amber-500 transition-colors p-0.5 rounded cursor-pointer"
@@ -277,6 +278,7 @@ export const UOMMultiSelect = forwardRef<HTMLDivElement, UOMMultiSelectProps>(
                       {/* Remove Button */}
                       <button
                         type="button"
+                        tabIndex={-1}
                         aria-label={`Remove ${def.name}`}
                         onClick={(e) => handleRemoveUnit(unitCode, e)}
                         className={cn(
@@ -303,6 +305,7 @@ export const UOMMultiSelect = forwardRef<HTMLDivElement, UOMMultiSelectProps>(
               {value.length > 0 && !disabled && (
                 <button
                   type="button"
+                  tabIndex={-1}
                   onClick={handleClearAll}
                   title="Clear selection"
                   className="p-1 rounded-md text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"

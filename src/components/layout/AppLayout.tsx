@@ -24,7 +24,7 @@ export function AppLayout({ children }: AppLayoutProps) {
           <SocketProvider>
             <AdminAuthProvider>
               <StoreSettingsProvider>
-                <div className="min-h-screen flex bg-[#f8fafc] dark:bg-[#090e1a] text-slate-900 dark:text-slate-100 font-sans antialiased overflow-x-hidden transition-colors duration-200">
+                <div className="min-h-screen flex bg-[#f8fafc] dark:bg-[#090e1a] text-slate-900 dark:text-slate-100 font-sans antialiased overflow-x-clip transition-colors duration-200">
                   {/* Desktop Fixed Collapsible Sidebar */}
                   <Sidebar />
 

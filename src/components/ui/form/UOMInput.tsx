@@ -189,6 +189,7 @@ export const UOMInput = forwardRef<HTMLInputElement, UOMInputProps>(
           {/* Unit Selector Button Trigger */}
           <button
             type="button"
+            tabIndex={-1}
             disabled={disabled}
             onClick={() => !disabled && setIsOpen(!isOpen)}
             className={cn(

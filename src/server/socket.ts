@@ -11,6 +11,15 @@ export interface ServerToClientEvents {
   "departments:changed": (data?: { action: string; id?: string }) => void;
   "roles:changed": (data?: { action: string; id?: string }) => void;
   "shifts:changed": (data?: { action: string; id?: string }) => void;
+  "staff:changed": (data?: { action: string; id?: string }) => void;
+  "categories:changed": (data?: any) => void;
+  "brands:changed": (data?: any) => void;
+  "manufacturers:changed": (data?: any) => void;
+  "attributes:changed": (data?: any) => void;
+  "products:changed": (data?: any) => void;
+  "inventory:changed": (data?: any) => void;
+  "warehouses:changed": (data?: any) => void;
+  "stock:changed": (data?: any) => void;
 }
 
 export interface ClientToServerEvents {

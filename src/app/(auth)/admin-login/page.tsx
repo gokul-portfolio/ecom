@@ -13,12 +13,17 @@ import { Alert } from "@/components/ui/feedback";
 import { Mail, ArrowRight, Crown } from "lucide-react";
 import { useFormKeyboardNavigation } from "@/lib/utils";
 
-// Strict Zod Validation Schema for Login
+// Strict Zod Validation Schema for Login (Supports either Email or Username/ID)
 const loginSchema = z.object({
-  email: z
+  identifier: z
     .string()
-    .min(1, "Email address is required")
-    .email("Please enter a valid email address (e.g. name@company.com)"),
+    .trim()
+    .min(1, "Username or Email is required")
+    .refine((val) => {
+      const isEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val);
+      const isUsername = /^[a-zA-Z0-9._-]{3,50}$/.test(val);
+      return isEmail || isUsername;
+    }, "Please enter a valid official email (e.g. name@company.com) or username (e.g. alex.morgan)"),
   password: z
     .string()
     .min(1, "Password is required")
@@ -35,11 +40,11 @@ function AdminLoginForm() {
   const { login } = useAdminAuth();
   const { settings } = useStoreSettings();
 
-  const [email, setEmail] = useState("");
+  const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [rememberMe, setRememberMe] = useState(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const [fieldErrors, setFieldErrors] = useState<{ email?: string; password?: string }>({});
+  const [fieldErrors, setFieldErrors] = useState<{ identifier?: string; password?: string }>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Common enterprise keyboard navigation hook from @/lib/utils
@@ -60,14 +65,14 @@ function AdminLoginForm() {
   // Frontend Zod Validation Function
   const validateWithZod = (): boolean => {
     const result = loginSchema.safeParse({
-      email: email.trim(),
+      identifier: identifier.trim(),
       password,
     });
 
     if (!result.success) {
-      const errs: { email?: string; password?: string } = {};
+      const errs: { identifier?: string; password?: string } = {};
       result.error.issues.forEach((issue) => {
-        const fieldName = issue.path[0] as "email" | "password";
+        const fieldName = issue.path[0] as "identifier" | "password";
         if (fieldName && !errs[fieldName]) {
           errs[fieldName] = issue.message;
         }
@@ -81,8 +86,8 @@ function AdminLoginForm() {
   };
 
   // Real-time Single Field Zod Validator on Blur
-  const handleBlurField = (field: "email" | "password") => {
-    const val = field === "email" ? email.trim() : password;
+  const handleBlurField = (field: "identifier" | "password") => {
+    const val = field === "identifier" ? identifier.trim() : password;
     if (!val) return; // Don't aggressively validate on empty blur before submit
 
     const fieldSchema = loginSchema.shape[field];
@@ -111,7 +116,7 @@ function AdminLoginForm() {
     setIsSubmitting(true);
 
     try {
-      const res = await login(email.trim(), password);
+      const res = await login(identifier.trim(), password);
 
       if (res.success) {
         // If not onboarded, MUST go to /onboarding
@@ -119,10 +124,10 @@ function AdminLoginForm() {
         const destination = isNotOnboarded ? "/onboarding" : (callbackUrl || res.redirectUrl || "/dashboard");
         router.push(destination);
       } else {
-        const serverError = res.error || "Invalid email or password. Please verify credentials.";
+        const serverError = res.error || "Invalid username/email or password. Please verify credentials.";
         setErrorMsg(serverError);
         setFieldErrors({
-          email: "Please check your registered email",
+          identifier: "Please verify your username or registered email",
           password: "Or check your password",
         });
       }
@@ -211,7 +216,7 @@ function AdminLoginForm() {
                 WELCOME BACK
               </h1>
               <p className="text-xs text-slate-400 mt-1">
-                Enter your email and password to access your account
+                Enter your username or official email and password to access your account
               </p>
             </div>
 
@@ -233,19 +238,19 @@ function AdminLoginForm() {
             >
               
               {/* Reusable FormField + TextInput with Zod error below */}
-              <FormField label="Email" required error={fieldErrors.email}>
+              <FormField label="Username or Official Email" required error={fieldErrors.identifier}>
                 <TextInput
                   ref={firstInputRef}
                   autoFocus
-                  type="email"
+                  type="text"
                   size="md"
-                  error={Boolean(fieldErrors.email)}
-                  placeholder="name@company.com"
-                  value={email}
-                  onBlur={() => handleBlurField("email")}
+                  error={Boolean(fieldErrors.identifier)}
+                  placeholder="e.g. alex.morgan or alex@company.com"
+                  value={identifier}
+                  onBlur={() => handleBlurField("identifier")}
                   onChange={(e) => {
-                    setEmail(e.target.value);
-                    if (fieldErrors.email) setFieldErrors((prev) => ({ ...prev, email: undefined }));
+                    setIdentifier(e.target.value);
+                    if (fieldErrors.identifier) setFieldErrors((prev) => ({ ...prev, identifier: undefined }));
                   }}
                   leftIcon={<Mail className="w-4 h-4 text-slate-400" />}
                 />

@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 import { departmentSchema, departmentUpdateSchema } from "@/lib/validations/department";
 import { useAdminAuth } from "@/hooks/useAdminAuth";
+import { SelectInput } from "@/components/ui/form";
 
 interface DepartmentData {
   id: string;
@@ -416,18 +417,17 @@ function DepartmentFormContent() {
                   <label className="text-[11px] font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
                     Operational Status <span className="text-rose-500">*</span>
                   </label>
-                  <select
+                  <SelectInput
+                    options={[
+                      { value: "ACTIVE", label: "Active (Available for assignments)" },
+                      { value: "INACTIVE", label: "Inactive (Suspended)" },
+                    ]}
                     value={status}
                     disabled={isSubmitting}
+                    placeholder="Select status..."
+                    clearable={false}
                     onChange={(e) => setStatus(e.target.value as "ACTIVE" | "INACTIVE")}
-                    className={cn(
-                      "w-full h-10 px-3 text-xs font-medium rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900 text-slate-900 dark:text-slate-100 focus:outline-none focus:bg-white dark:focus:bg-slate-900 focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500 transition-all cursor-pointer",
-                      isSubmitting && "opacity-60 cursor-not-allowed"
-                    )}
-                  >
-                    <option value="ACTIVE">Active (Available for assignments)</option>
-                    <option value="INACTIVE">Inactive (Suspended)</option>
-                  </select>
+                  />
                   <p className="text-[11px] text-slate-400">
                     Inactive departments cannot be assigned to new staff or roles.
                   </p>
@@ -482,7 +482,7 @@ function DepartmentFormContent() {
                   disabled={isSubmitting}
                   className="rounded-xl"
                 >
-                  Clear Form (F4)
+                  Clear Form 
                 </Button>
               ) : (
                 <Button
@@ -505,7 +505,7 @@ function DepartmentFormContent() {
                 disabled={isSubmitting || !canWriteDept}
                 className="rounded-xl shadow-xs"
               >
-                {isEditMode ? "Save Department (Ctrl+S)" : "Create Department (Ctrl+S)"}
+                {isEditMode ? "Save Department" : "Create Department"}
               </Button>
             </div>
           </form>

@@ -9,66 +9,142 @@ datasource db {
 }
 
 // =================================================================
-// 1. DEPARTMENTS & ROLES MODULE
+// 1. ROOT PLATFORM OWNER & SYSTEM CONFIGURATION
+// =================================================================
+
+model SuperAdmin {
+  id           String  @id @default(uuid())
+  email        String  @unique // admin@gmail.com
+  passwordHash String
+  fullName     String  @default("System Super Admin")
+  phone        String?
+  avatarUrl    String?
+  isActive     Boolean @default(true)
+
+  // Enterprise Security Controls
+  failedLoginAttempts    Int       @default(0)
+  lockedUntil            DateTime?
+  lastLoginAt            DateTime?
+  lastLoginIp            String?
+  hasCompletedOnboarding Boolean   @default(false)
+
+  sessions  AdminSession[]
+  auditLogs AdminAuditLog[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([email])
+}
+
+model StoreSettings {
+  id          String  @id @default("default-store-settings")
+  companyName String // e.g. "Noble Threads & Co."
+  legalName   String? // Legal registered entity name
+  tagline     String? // e.g. "Luxury Handcrafted Apparel"
+
+  // Media Assets (Cloudinary CDN URLs)
+  logoUrl         String?
+  logoPublicId    String?
+  faviconUrl      String?
+  faviconPublicId String?
+
+  // Contact & Support
+  supportEmail String
+  supportPhone String?
+  salesEmail   String?
+
+  // Legal & Taxation
+  taxNumber String? // GSTIN / Tax ID
+  panNumber String?
+
+  // Currency & Localization
+  defaultCurrency String @default("INR")
+  currencySymbol  String @default("₹")
+  timezone        String @default("Asia/Kolkata")
+
+  // Physical Address
+  streetAddress String?
+  city          String?
+  state         String?
+  pincode       String?
+  country       String  @default("India")
+
+  // Social Links
+  instagramUrl String?
+  facebookUrl  String?
+  twitterUrl   String?
+  linkedinUrl  String?
+
+  // Wizard Completion Gate
+  isOnboarded Boolean   @default(false)
+  onboardedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// =================================================================
+// 2. ORGANIZATIONAL HIERARCHY & WORK SCHEDULES
 // =================================================================
 
 model Department {
-  id          String       @id @default(uuid())
-  code        String       @unique // e.g. "EXECUTIVE", "FINANCE", "OPERATIONS", "SUPPORT"
-  name        String       // e.g. "Accounts & Finance"
+  id          String  @id @default(uuid())
+  code        String  @unique // e.g. "EXECUTIVE", "FINANCE", "OPERATIONS", "SUPPORT"
+  name        String // e.g. "Accounts & Finance"
   description String?
-  isActive    Boolean      @default(true)
+  isActive    Boolean @default(true)
 
-  roles       Role[]
-  staff       AdminUser[]
+  roles Role[]
+  staff Staff[]
 
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
-
-  @@index([code])
-}
-
-model Shift {
-  id               String       @id @default(uuid())
-  code             String       @unique // e.g. "SHF001", "MORNING", "NIGHT"
-  name             String       // e.g. "Morning General Shift"
-  startTime        String       // e.g. "09:00"
-  endTime          String       // e.g. "18:00"
-  gracePeriodMins  Int          @default(15)
-  description      String?
-  isActive         Boolean      @default(true)
-
-  staff            AdminUser[]
-
-  createdAt        DateTime     @default(now())
-  updatedAt        DateTime     @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([code])
 }
 
 model Role {
-  id           String       @id @default(uuid())
-  slug         String       @unique // e.g. "super_admin", "accounts_manager", "store_manager"
-  name         String       // e.g. "Accounts Manager"
+  id           String     @id @default(uuid())
+  slug         String     @unique // e.g. "super_admin", "accounts_manager", "store_manager"
+  name         String // e.g. "Accounts Manager"
   description  String?
   departmentId String
-  department   Department   @relation(fields: [departmentId], references: [id], onDelete: Restrict)
-  isSystem     Boolean      @default(false) // true for SUPER_ADMIN (cannot be deleted)
+  department   Department @relation(fields: [departmentId], references: [id], onDelete: Restrict)
+  isSystem     Boolean    @default(false) // true for SUPER_ADMIN (cannot be deleted)
 
   // Granular Permission Matrix JSON: { "departments:read": true, "finance:read": true, ... }
-  permissions  Json
+  permissions Json
 
-  staff        AdminUser[]
+  staff Staff[]
 
-  createdAt    DateTime     @default(now())
-  updatedAt    DateTime     @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([departmentId])
   @@index([slug])
 }
 
+model Shift {
+  id              String  @id @default(uuid())
+  code            String  @unique // e.g. "SHF001", "MORNING", "NIGHT"
+  name            String // e.g. "Morning General Shift"
+  startTime       String // e.g. "09:00"
+  endTime         String // e.g. "18:00"
+  gracePeriodMins Int     @default(15)
+  description     String?
+  isActive        Boolean @default(true)
+
+  staff Staff[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([code])
+}
+
 // =================================================================
-// 2. ADMIN STAFF USERS (STRICT TABLE ISOLATION)
+// 3. STAFF & EMPLOYEE MANAGEMENT (HRMS MODULE)
 // =================================================================
 
 enum AdminStatus {
@@ -90,183 +166,644 @@ enum Gender {
   NOT_SPECIFIED
 }
 
-model AdminUser {
-  id                  String         @id @default(uuid())
-  employeeCode        String?        @unique // e.g. "EMP001", "EMP002"
-  email               String         @unique
-  passwordHash        String
-  fullName            String
-  phone               String?
-  avatarUrl           String?
-  status              AdminStatus    @default(ACTIVE)
+enum WorkMode {
+  ON_SITE
+  REMOTE
+  HYBRID
+}
 
-  // Professional Employment Details
-  designation         String?        // e.g. "Operations Lead", "Tax Specialist"
+enum MaritalStatus {
+  SINGLE
+  MARRIED
+  DIVORCED
+  WIDOWED
+}
+
+enum TaxRegime {
+  NEW_REGIME
+  OLD_REGIME
+}
+
+enum BloodGroup {
+  A_POSITIVE
+  A_NEGATIVE
+  B_POSITIVE
+  B_NEGATIVE
+  O_POSITIVE
+  O_NEGATIVE
+  AB_POSITIVE
+  AB_NEGATIVE
+  NOT_SPECIFIED
+}
+
+model Staff {
+  id             String      @id @default(uuid())
+  employeeCode   String      @unique // e.g. "EMP001", "EMP002"
+  username       String?     @unique // e.g. "alex.morgan", "alex_m"
+  email          String?     @unique
+  passwordHash   String?     // Nullable when hasLoginAccess is false
+  hasLoginAccess Boolean     @default(true) // Toggle: Grant portal/system login access
+  fullName       String
+  phone          String?
+  avatarUrl      String?
+  status         AdminStatus @default(ACTIVE)
+
+  // 1. Personal & KYC Info
+  gender        Gender        @default(NOT_SPECIFIED)
+  dateOfBirth   DateTime?
+  bloodGroup    BloodGroup    @default(NOT_SPECIFIED)
+  maritalStatus MaritalStatus @default(SINGLE)
+  aadhaarNumber String?
+  panNumber     String?
+
+  // 2. Organization, Hierarchy & Shifts
+  designation  String? // e.g. "Operations Lead", "Tax Specialist"
+  departmentId String?
+  department   Department? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+
+  roleId String?
+  role   Role?   @relation(fields: [roleId], references: [id], onDelete: SetNull)
+
+  shiftId String?
+  shift   Shift?  @relation(fields: [shiftId], references: [id], onDelete: SetNull)
+
+  // Hierarchy self-relation
+  reportingManagerId String?
+  reportingManager   Staff?  @relation("StaffHierarchy", fields: [reportingManagerId], references: [id], onDelete: SetNull)
+  subordinates       Staff[] @relation("StaffHierarchy")
+
+  // 3. Professional Employment Terms
   employmentType      EmploymentType @default(FULL_TIME)
+  workMode            WorkMode       @default(ON_SITE)
   joiningDate         DateTime?
-  salary              Float?
+  probationPeriodDays Int            @default(90)
+  noticePeriodDays    Int            @default(30)
+  contractEndDate     DateTime?
 
-  // Personal & Emergency Info
-  gender              Gender         @default(NOT_SPECIFIED)
-  dateOfBirth         DateTime?
+  // 4. Payroll & Compensation (Salary Breakdown)
+  salary             Float? // Cost to Company (CTC) per annum
+  monthlyGrossSalary Float? // Monthly Gross Salary
+  basicSalary        Float? // 50% of Gross
+  hra                Float? // House Rent Allowance
+  specialAllowance   Float? // Other allowances
+  taxRegime          TaxRegime @default(NEW_REGIME)
+
+  // Statutory Compliance (PF & ESI)
+  isPfEligible  Boolean @default(true)
+  pfUanNumber   String?
+  isEsiEligible Boolean @default(false)
+  esiNumber     String?
+
+  // 5. Banking & Direct Deposit Details
+  bankName      String?
+  bankAccountNo String?
+  bankIfscCode  String?
+  bankBranch    String?
+  upiId         String?
+
+  // 6. Leave Entitlement Quotas (Annual Balances)
+  annualCasualLeaves Int @default(12)
+  annualSickLeaves   Int @default(12)
+  annualPaidLeaves   Int @default(18)
+
+  // 7. Personal & Emergency Info
   emergencyContactName  String?
   emergencyContactPhone String?
-  address             String?
-
-  // Foreign keys to Department, Role, and Shift (Optional for root Super Admin without bootstrapped roles/departments)
-  departmentId        String?
-  department          Department?    @relation(fields: [departmentId], references: [id], onDelete: SetNull)
-
-  roleId              String?
-  role                Role?          @relation(fields: [roleId], references: [id], onDelete: SetNull)
-
-  shiftId             String?
-  shift               Shift?         @relation(fields: [shiftId], references: [id], onDelete: SetNull)
+  emergencyRelationship String?
+  address               String?
+  currentAddress        String?
+  permanentAddress      String?
 
   // Enterprise Security Controls
-  failedLoginAttempts Int            @default(0)
+  failedLoginAttempts Int       @default(0)
   lockedUntil         DateTime?
   lastLoginAt         DateTime?
   lastLoginIp         String?
-  hasCompletedOnboarding Boolean        @default(false)
 
-  sessions            AdminSession[]
-  auditLogs           AdminAuditLog[]
+  sessions  AdminSession[]
+  auditLogs AdminAuditLog[]
 
-  createdAt           DateTime       @default(now())
-  updatedAt           DateTime       @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([employeeCode])
+  @@index([username])
   @@index([email])
   @@index([departmentId])
   @@index([roleId])
   @@index([shiftId])
+  @@index([reportingManagerId])
 }
 
-model AdminSession {
-  id           String     @id @default(uuid())
-  adminId      String
-  admin        AdminUser  @relation(fields: [adminId], references: [id], onDelete: Cascade)
-  tokenHash    String     @unique
-  ipAddress    String?
-  userAgent    String?
-  expiresAt    DateTime
-  createdAt    DateTime   @default(now())
+// =================================================================
+// 4. SECURITY, SESSIONS & AUDIT LOGGING
+// =================================================================
 
-  @@index([adminId])
+model AdminSession {
+  id       String @id @default(uuid())
+  userType String @default("STAFF") // "SUPER_ADMIN" | "STAFF"
+
+  superAdminId String?
+  superAdmin   SuperAdmin? @relation(fields: [superAdminId], references: [id], onDelete: Cascade)
+
+  staffId String?
+  staff   Staff?  @relation(fields: [staffId], references: [id], onDelete: Cascade)
+
+  tokenHash String   @unique
+  ipAddress String?
+  userAgent String?
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([superAdminId])
+  @@index([staffId])
   @@index([tokenHash])
 }
 
 model AdminAuditLog {
-  id           String     @id @default(uuid())
-  adminId      String
-  admin        AdminUser  @relation(fields: [adminId], references: [id], onDelete: Cascade)
-  action       String     // e.g. "DEPARTMENT_CREATED", "ROLE_UPDATED", "STAFF_INVITED"
-  targetEntity String     // e.g. "Department", "Role", "AdminUser"
+  id        String @id @default(uuid())
+  actorType String @default("STAFF") // "SUPER_ADMIN" | "STAFF"
+
+  superAdminId String?
+  superAdmin   SuperAdmin? @relation(fields: [superAdminId], references: [id], onDelete: Cascade)
+
+  staffId String?
+  staff   Staff?  @relation(fields: [staffId], references: [id], onDelete: Cascade)
+
+  action       String // e.g. "DEPARTMENT_CREATED", "ROLE_UPDATED", "STAFF_INVITED"
+  targetEntity String // e.g. "Department", "Role", "Staff"
   targetId     String?
   ipAddress    String?
-  details      Json?      // Old state vs New state snapshot
-  createdAt    DateTime   @default(now())
+  details      Json? // Old state vs New state snapshot
+  createdAt    DateTime @default(now())
 
-  @@index([adminId])
+  @@index([superAdminId])
+  @@index([staffId])
   @@index([action])
 }
 
 // =================================================================
-// 3. STOREFRONT CUSTOMERS (ISOLATED ENTITY)
+// 5. STOREFRONT CUSTOMER ACCOUNTS & ADDRESSES
 // =================================================================
 
 model Customer {
-  id                 String            @id @default(uuid())
-  email              String            @unique
-  passwordHash       String?
-  firstName          String
-  lastName           String?
-  phone              String?
-  isEmailVerified    Boolean           @default(false)
+  id              String  @id @default(uuid())
+  email           String  @unique
+  passwordHash    String?
+  firstName       String
+  lastName        String?
+  phone           String?
+  isEmailVerified Boolean @default(false)
 
-  sessions           CustomerSession[]
-  addresses          CustomerAddress[]
+  sessions  CustomerSession[]
+  addresses CustomerAddress[]
 
-  createdAt          DateTime          @default(now())
-  updatedAt          DateTime          @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([email])
 }
 
 model CustomerSession {
-  id           String    @id @default(uuid())
-  customerId   String
-  customer     Customer  @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  tokenHash    String    @unique
-  expiresAt    DateTime
-  createdAt    DateTime  @default(now())
+  id         String   @id @default(uuid())
+  customerId String
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  tokenHash  String   @unique
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
 
   @@index([customerId])
 }
 
 model CustomerAddress {
-  id           String    @id @default(uuid())
-  customerId   String
-  customer     Customer  @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  type         String    // "SHIPPING" | "BILLING"
-  fullName     String
-  street       String
-  city         String
-  state        String
-  pincode      String
-  country      String    @default("IN")
-  isDefault    Boolean   @default(false)
+  id         String   @id @default(uuid())
+  customerId String
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  type       String // "SHIPPING" | "BILLING"
+  fullName   String
+  street     String
+  city       String
+  state      String
+  pincode    String
+  country    String   @default("IN")
+  isDefault  Boolean  @default(false)
+
+  @@index([customerId])
 }
 
 // =================================================================
-// 4. STORE SETTINGS & COMPANY PROFILE (SINGLETON CONFIG)
+// 6. PRODUCT CATALOG TAXONOMY (CATEGORIES, BRANDS & MANUFACTURERS)
 // =================================================================
 
-model StoreSettings {
-  id               String   @id @default("default-store-settings")
-  companyName      String   // e.g. "Noble Threads & Co."
-  legalName        String?  // Legal registered entity name
-  tagline          String?  // e.g. "Luxury Handcrafted Apparel"
+model Category {
+  id              String      @id @default(uuid())
+  code            String      @unique // e.g. "CAT001"
+  name            String      // e.g. "Casual Shirts"
+  slug            String      @unique // e.g. "casual-shirts"
+  description     String?
+  level           Int         @default(0) // Root = 0, Child = 1, Grandchild = 2
+  sortOrder       Int         @default(0)
+  isActive        Boolean     @default(true)
+
+  // Media Assets (Cloudinary)
+  iconUrl         String?
+  iconPublicId    String?
+  bannerUrl       String?
+  bannerPublicId  String?
+
+  // SEO Metadata
+  metaTitle       String?
+  metaDescription String?
+  canonicalUrl    String?
+
+  // Self-referencing Parent-Child Hierarchy
+  parentId        String?
+  parent          Category?   @relation("CategoryHierarchy", fields: [parentId], references: [id], onDelete: Restrict)
+  children        Category[]  @relation("CategoryHierarchy")
+
+  // Relationships
+  categoryAttributes CategoryAttribute[]
+  productCategories  ProductCategory[]
+
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  @@index([slug])
+  @@index([parentId])
+  @@index([isActive])
+}
+
+model Brand {
+  id              String      @id @default(uuid())
+  code            String      @unique // e.g. "BRD001"
+  name            String      @unique // e.g. "Nike", "Sony"
+  slug            String      @unique // e.g. "nike", "sony"
+  description     String?
+  website         String?
+  countryOfOrigin String?     @default("India")
+  isActive        Boolean     @default(true)
+
+  // Media Assets
+  logoUrl         String?
+  logoPublicId    String?
+
+  // SEO Metadata
+  metaTitle       String?
+  metaDescription String?
+
+  products        Product[]
+
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  @@index([slug])
+  @@index([isActive])
+}
+
+model Manufacturer {
+  id              String      @id @default(uuid())
+  code            String      @unique // e.g. "MNF001"
+  companyName     String
+  registrationNo  String?     // CIN / Business registration
+  email           String?
+  phone           String?
+  address         String?
+  countryOfOrigin String?     @default("India")
+  isActive        Boolean     @default(true)
+
+  products        Product[]
+
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  @@index([companyName])
+}
+
+// =================================================================
+// 7. DYNAMIC ATTRIBUTE ENGINE (EAV METRIC SPECIFICATIONS)
+// =================================================================
+
+enum AttributeDataType {
+  TEXT
+  NUMBER
+  BOOLEAN
+  SINGLE_SELECT
+  MULTI_SELECT
+  MEASUREMENT
+  DATE
+}
+
+model AttributeDefinition {
+  id              String             @id @default(uuid())
+  code            String             @unique // e.g. "apparel_size", "spf_rating", "processor"
+  name            String             // e.g. "Size", "SPF Rating", "Processor Model"
+  dataType        AttributeDataType  @default(TEXT)
+  allowedOptions  Json?              // e.g. ["XS", "S", "M", "L", "XL"] for select types
+  unitGroup       String?            // e.g. "LENGTH", "WEIGHT", "VOLUME", "POWER"
+  defaultUnit     String?            // e.g. "cm", "kg", "ml", "W"
+  isFilterable    Boolean            @default(true)
+  isSearchable    Boolean            @default(false)
+  isVariantAxis   Boolean            @default(false) // Used to define variants
+  isActive        Boolean            @default(true)
+
+  categoryMappings CategoryAttribute[]
+  attributeValues  ProductAttributeValue[]
+
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+
+  @@index([code])
+}
+
+model CategoryAttribute {
+  id                  String              @id @default(uuid())
+  categoryId          String
+  category            Category            @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  attributeId         String
+  attributeDefinition AttributeDefinition @relation(fields: [attributeId], references: [id], onDelete: Cascade)
   
-  // Media Assets (Cloudinary CDN URLs)
-  logoUrl          String?
-  logoPublicId     String?
-  faviconUrl       String?
-  faviconPublicId  String?
+  isRequired          Boolean             @default(false)
+  displayGroup        String?             @default("General Specifications")
+  sortOrder           Int                 @default(0)
 
-  // Contact & Support
-  supportEmail     String
-  supportPhone     String?
-  salesEmail       String?
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
 
-  // Legal & Taxation
-  taxNumber        String?  // GSTIN / Tax ID
-  panNumber        String?
-
-  // Currency & Localization
-  defaultCurrency  String   @default("INR")
-  currencySymbol   String   @default("₹")
-  timezone         String   @default("Asia/Kolkata")
-
-  // Physical Address
-  streetAddress    String?
-  city             String?
-  state            String?
-  pincode          String?
-  country          String   @default("India")
-
-  // Social Links
-  instagramUrl     String?
-  facebookUrl      String?
-  twitterUrl       String?
-  linkedinUrl      String?
-
-  // Wizard Completion Gate
-  isOnboarded      Boolean  @default(false)
-  onboardedAt      DateTime?
-
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  @@unique([categoryId, attributeId])
 }
 
+// =================================================================
+// 8. PRODUCTS, MEDIA & CARTESIAN VARIANTS
+// =================================================================
+
+enum ProductType {
+  PHYSICAL
+  DIGITAL
+  SERVICE
+}
+
+enum ProductStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+model TaxClass {
+  id          String    @id @default(uuid())
+  name        String    // e.g. "Standard GST 18%", "Reduced GST 5%"
+  code        String    @unique // e.g. "GST_18"
+  rate        Float     // e.g. 18.0
+  hsnCode     String?   // Harmonized System of Nomenclature
+  isDefault   Boolean   @default(false)
+  isActive    Boolean   @default(true)
+
+  products    Product[]
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model Product {
+  id                String        @id @default(uuid())
+  code              String        @unique // e.g. "PRD001"
+  title             String
+  slug              String        @unique
+  shortDescription  String?
+  description       String?       // Rich text sanitized HTML
+  productType       ProductType   @default(PHYSICAL)
+  status            ProductStatus @default(DRAFT)
+  publishedAt       DateTime?
+
+  // Pricing & Taxation
+  basePrice         Float
+  compareAtPrice    Float?
+  costPrice         Float?
+  isTaxInclusive    Boolean       @default(true)
+  taxClassId        String?
+  taxClass          TaxClass?     @relation(fields: [taxClassId], references: [id], onDelete: SetNull)
+
+  // Reference Relations
+  brandId           String?
+  brand             Brand?        @relation(fields: [brandId], references: [id], onDelete: SetNull)
+  manufacturerId    String?
+  manufacturer      Manufacturer? @relation(fields: [manufacturerId], references: [id], onDelete: SetNull)
+
+  // SEO Metadata
+  metaTitle         String?
+  metaDescription   String?
+  canonicalUrl      String?
+
+  // Collections
+  categories        ProductCategory[]
+  variants          ProductVariant[]
+  media             ProductMedia[]
+  attributeValues   ProductAttributeValue[]
+
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  @@index([slug])
+  @@index([status])
+  @@index([brandId])
+}
+
+model ProductCategory {
+  id         String   @id @default(uuid())
+  productId  String
+  product    Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  categoryId String
+  category   Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  isPrimary  Boolean  @default(false)
+
+  @@unique([productId, categoryId])
+}
+
+model ProductVariant {
+  id             String          @id @default(uuid())
+  productId      String
+  product        Product         @relation(fields: [productId], references: [id], onDelete: Cascade)
+  sku            String          @unique
+  barcode        String?         @unique // EAN-13, UPC-A, GTIN
+  title          String          // e.g. "Red / XL"
+  optionValues   Json            // e.g. {"color": "Red", "size": "XL"}
+
+  // Pricing Overrides
+  price          Float
+  compareAtPrice Float?
+  costPrice      Float?
+
+  // Weight & Logistics
+  weight         Float?
+  weightUnit     String?         @default("kg")
+  
+  isDefault      Boolean         @default(false)
+  isActive       Boolean         @default(true)
+
+  media          ProductMedia[]
+  attributeValues ProductAttributeValue[]
+  inventoryBalances InventoryBalance[]
+  stockMovements    StockMovement[]
+  lowStockAlerts    LowStockAlert[]
+
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  @@index([sku])
+  @@index([barcode])
+  @@index([productId])
+}
+
+model ProductMedia {
+  id          String          @id @default(uuid())
+  productId   String
+  product     Product         @relation(fields: [productId], references: [id], onDelete: Cascade)
+  variantId   String?
+  variant     ProductVariant? @relation(fields: [variantId], references: [id], onDelete: SetNull)
+
+  url         String          // Cloudinary secure_url
+  publicId    String          // Cloudinary public_id
+  altText     String?
+  sortOrder   Int             @default(0)
+  isThumbnail Boolean         @default(false)
+
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  @@index([productId])
+  @@index([variantId])
+}
+
+model ProductAttributeValue {
+  id                  String              @id @default(uuid())
+  productId           String
+  product             Product             @relation(fields: [productId], references: [id], onDelete: Cascade)
+  variantId           String?
+  variant             ProductVariant?     @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  attributeId         String
+  attributeDefinition AttributeDefinition @relation(fields: [attributeId], references: [id], onDelete: Cascade)
+
+  textValue           String?
+  numValue            Float?
+  boolValue           Boolean?
+  jsonValue           Json?
+  unit                String?
+
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
+
+  @@index([productId])
+  @@index([attributeId])
+}
+
+// =================================================================
+// 9. INVENTORY, WAREHOUSES & AUDITABLE LEDGER
+// =================================================================
+
+model Warehouse {
+  id          String             @id @default(uuid())
+  code        String             @unique // e.g. "WH-BLR-01"
+  name        String             // e.g. "Bengaluru Central Fulfillment"
+  address     String?
+  city        String?
+  state       String?
+  country     String             @default("India")
+  pincode     String?
+  contactPhone String?
+  isActive    Boolean            @default(true)
+
+  inventoryBalances InventoryBalance[]
+  stockMovementsFrom StockMovement[]   @relation("WarehouseMovementsFrom")
+  stockMovementsTo   StockMovement[]   @relation("WarehouseMovementsTo")
+  lowStockAlerts    LowStockAlert[]
+
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+}
+
+model InventoryBalance {
+  id          String         @id @default(uuid())
+  warehouseId String
+  warehouse   Warehouse      @relation(fields: [warehouseId], references: [id], onDelete: Cascade)
+  variantId   String
+  variant     ProductVariant @relation(fields: [variantId], references: [id], onDelete: Cascade)
+
+  onHand      Int            @default(0)
+  reserved    Int            @default(0)
+  available   Int            @default(0) // Generated: onHand - reserved
+  lowStockThreshold Int      @default(5)
+
+  updatedAt   DateTime       @updatedAt
+
+  @@unique([warehouseId, variantId])
+  @@index([variantId])
+}
+
+enum StockMovementType {
+  PURCHASE_RECEIPT
+  SALE_DEDUCTION
+  ORDER_RESERVED
+  ORDER_RELEASED
+  CUSTOMER_RETURN
+  DAMAGED_WRITE_OFF
+  EXPIRY_DISPOSAL
+  MANUAL_AUDIT_CORRECTION
+  WAREHOUSE_TRANSFER
+}
+
+model StockMovement {
+  id              String            @id @default(uuid())
+  variantId       String
+  variant         ProductVariant    @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  
+  fromWarehouseId String?
+  fromWarehouse   Warehouse?        @relation("WarehouseMovementsFrom", fields: [fromWarehouseId], references: [id])
+  toWarehouseId   String?
+  toWarehouse     Warehouse?        @relation("WarehouseMovementsTo", fields: [toWarehouseId], references: [id])
+
+  type            StockMovementType
+  quantity        Int               // Positive or negative delta
+  resultingOnHand Int
+  reason          String?
+  referenceNumber String?           // e.g. Order #, PO #, RMA #
+  actorId         String?           // Staff ID who performed action
+
+  createdAt       DateTime          @default(now())
+
+  @@index([variantId])
+  @@index([createdAt])
+}
+
+model LowStockAlert {
+  id              String         @id @default(uuid())
+  variantId       String
+  variant         ProductVariant @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  warehouseId     String
+  warehouse       Warehouse      @relation(fields: [warehouseId], references: [id], onDelete: Cascade)
+
+  currentStock    Int
+  threshold       Int
+  isAcknowledged  Boolean        @default(false)
+  acknowledgedAt  DateTime?
+  acknowledgedById String?
+
+  createdAt       DateTime       @default(now())
+
+  @@unique([warehouseId, variantId])
+  @@index([variantId])
+  @@index([isAcknowledged])
+}
+
+// =================================================================
+// 10. SEO 301 REDIRECTS AUDIT
+// =================================================================
+
+model SeoRedirect {
+  id         String   @id @default(uuid())
+  oldSlug    String   @unique
+  newSlug    String
+  statusCode Int      @default(301)
+  entityType String   // "PRODUCT" | "CATEGORY"
+  createdAt  DateTime @default(now())
+
+  @@index([oldSlug])
+}

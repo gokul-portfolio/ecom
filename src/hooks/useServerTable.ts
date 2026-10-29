@@ -11,6 +11,7 @@ interface UseServerTableOptions<T> {
   defaultPageSize?: number;
   socketEventName?: string;
   autoFetch?: boolean;
+  extraParams?: Record<string, string | number | boolean | undefined>;
   initialData?: T[];
   initialPagination?: {
     totalItems: number;
@@ -58,9 +59,11 @@ export function useServerTable<T>({
   defaultPageSize = 10,
   socketEventName,
   autoFetch = true,
+  extraParams,
   initialData,
   initialPagination,
 }: UseServerTableOptions<T>) {
+  const extraParamsKey = JSON.stringify(extraParams || {});
   // If SSR initialData is supplied, seed the initial state and cache immediately (0ms loading)
   const initialCacheKey = `${endpoint}?page=1&limit=${defaultPageSize}&sortBy=${defaultSortBy}&sortOrder=${defaultSortOrder}`;
 
@@ -141,6 +144,14 @@ export function useServerTable<T>({
         params.set("search", debouncedSearch.trim());
       }
 
+      if (extraParams) {
+        Object.entries(extraParams).forEach(([k, v]) => {
+          if (v !== undefined && v !== null && v !== "") {
+            params.set(k, String(v));
+          }
+        });
+      }
+
       const cacheKey = `${endpoint}?${params.toString()}`;
       const cached = swrCache.get(cacheKey);
 
@@ -204,7 +215,7 @@ export function useServerTable<T>({
         setIsFetching(false);
       }
     },
-    [endpoint, page, pageSize, debouncedSearch, sortBy, sortOrder]
+    [endpoint, page, pageSize, debouncedSearch, sortBy, sortOrder, extraParamsKey]
   );
 
   // Trigger fetch on query param changes, skipping initial fetch if initialData was provided

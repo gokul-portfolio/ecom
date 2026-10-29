@@ -8,6 +8,8 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardNavigation";
 import { useAdminAuth } from "@/hooks/useAdminAuth";
+import { useSocket } from "@/components/providers/SocketProvider";
+import { useSidebar } from "@/hooks/useSidebar";
 import {
   PERMISSION_MATRIX_REGISTRY,
   ALL_SYSTEM_PERMISSIONS,
@@ -73,6 +75,8 @@ export function PermissionsClient({ initialRoles }: PermissionsClientProps) {
   const queryRoleId = searchParams.get("roleId");
   const { hasPermission: checkUserPerm } = useAdminAuth();
   const canManageRoles = checkUserPerm("roles:manage") || checkUserPerm("*");
+  const { isCollapsed } = useSidebar();
+  const { socket } = useSocket();
   const toast = useToast();
 
   const [roles, setRoles] = useState<RoleOption[]>(initialRoles);
@@ -82,6 +86,38 @@ export function PermissionsClient({ initialRoles }: PermissionsClientProps) {
     }
     return initialRoles[0]?.id || "";
   });
+
+  // Real-time synchronization when roles are updated across tabs
+  useEffect(() => {
+    if (!socket) return;
+    const handleRolesChanged = async () => {
+      try {
+        const res = await fetch("/api/admin/roles?limit=100");
+        const json = await res.json();
+        if (json.success && Array.isArray(json.data)) {
+          setRoles(
+            json.data.map((r: any) => ({
+              id: r.id,
+              name: r.name,
+              slug: r.slug,
+              description: r.description,
+              isSystem: r.isSystem,
+              permissions: Array.isArray(r.permissions) ? r.permissions : [],
+              department: r.department,
+              _count: r._count,
+            }))
+          );
+        }
+      } catch (err) {
+        console.error("Failed to re-fetch roles on socket event", err);
+      }
+    };
+
+    socket.on("roles:changed", handleRolesChanged);
+    return () => {
+      socket.off("roles:changed", handleRolesChanged);
+    };
+  }, [socket]);
 
   const [activeCategoryId, setActiveCategoryId] = useState<string>(
     PERMISSION_MATRIX_REGISTRY[0]?.id || "dashboard"
@@ -471,16 +507,23 @@ export function PermissionsClient({ initialRoles }: PermissionsClientProps) {
     }
   };
 
-  // Keyboard Shortcuts (F2 / Ctrl+S = Save, F4 = Reset)
+  // Keyboard Shortcuts: Ctrl+S / Cmd+S / F2 = Save, F4 = Reset, Esc = Navigate to Roles
   useKeyboardShortcuts(
     {
-      "f2, ctrl+s, meta+s": (e) => {
+      "f2": (e) => {
+        e.preventDefault();
+        handleSavePolicy();
+      },
+      "ctrl+s, meta+s": (e) => {
         e.preventDefault();
         handleSavePolicy();
       },
       "f4": (e) => {
         e.preventDefault();
         handleReset();
+      },
+      "escape": () => {
+        router.push("/roles");
       },
     },
     { enableInInputs: true, preventDefault: true }
@@ -699,7 +742,7 @@ export function PermissionsClient({ initialRoles }: PermissionsClientProps) {
                             disabled={!canManageRoles}
                             checked={hasPermission(sub.supportedActions.read)}
                             onChange={() => togglePermissionKey(sub.supportedActions.read!)}
-                            className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer disabled:cursor-not-allowed"
+                            className="w-4 h-4 rounded border-slate-300 dark:border-slate-700 dark:bg-slate-900 text-indigo-600 focus:ring-indigo-500 cursor-pointer disabled:cursor-not-allowed transition-all"
                           />
                         ) : (
                           <span className="text-slate-300 dark:text-slate-700 select-none font-bold">—</span>
@@ -714,7 +757,7 @@ export function PermissionsClient({ initialRoles }: PermissionsClientProps) {
                             disabled={!canManageRoles}
                             checked={hasPermission(sub.supportedActions.create)}
                             onChange={() => togglePermissionKey(sub.supportedActions.create!)}
-                            className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer disabled:cursor-not-allowed"
+                            className="w-4 h-4 rounded border-slate-300 dark:border-slate-700 dark:bg-slate-900 text-indigo-600 focus:ring-indigo-500 cursor-pointer disabled:cursor-not-allowed transition-all"
                           />
                         ) : (
                           <span className="text-slate-300 dark:text-slate-700 select-none font-bold">—</span>
@@ -729,7 +772,7 @@ export function PermissionsClient({ initialRoles }: PermissionsClientProps) {
                             disabled={!canManageRoles}
                             checked={hasPermission(sub.supportedActions.update)}
                             onChange={() => togglePermissionKey(sub.supportedActions.update!)}
-                            className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer disabled:cursor-not-allowed"
+                            className="w-4 h-4 rounded border-slate-300 dark:border-slate-700 dark:bg-slate-900 text-indigo-600 focus:ring-indigo-500 cursor-pointer disabled:cursor-not-allowed transition-all"
                           />
                         ) : (
                           <span className="text-slate-300 dark:text-slate-700 select-none font-bold">—</span>
@@ -744,7 +787,7 @@ export function PermissionsClient({ initialRoles }: PermissionsClientProps) {
                             disabled={!canManageRoles}
                             checked={hasPermission(sub.supportedActions.delete)}
                             onChange={() => togglePermissionKey(sub.supportedActions.delete!)}
-                            className="w-4 h-4 rounded border-rose-300 text-rose-600 focus:ring-rose-500 cursor-pointer disabled:cursor-not-allowed"
+                            className="w-4 h-4 rounded border-rose-300 dark:border-rose-800/80 dark:bg-slate-900 text-rose-600 focus:ring-rose-500 cursor-pointer disabled:cursor-not-allowed transition-all"
                           />
                         ) : (
                           <span className="text-slate-300 dark:text-slate-700 select-none font-bold">—</span>
@@ -759,7 +802,7 @@ export function PermissionsClient({ initialRoles }: PermissionsClientProps) {
                             disabled={!canManageRoles}
                             checked={hasPermission(sub.supportedActions.export)}
                             onChange={() => togglePermissionKey(sub.supportedActions.export!)}
-                            className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer disabled:cursor-not-allowed"
+                            className="w-4 h-4 rounded border-slate-300 dark:border-slate-700 dark:bg-slate-900 text-indigo-600 focus:ring-indigo-500 cursor-pointer disabled:cursor-not-allowed transition-all"
                           />
                         ) : (
                           <span className="text-slate-300 dark:text-slate-700 select-none font-bold">—</span>
@@ -774,7 +817,7 @@ export function PermissionsClient({ initialRoles }: PermissionsClientProps) {
                             disabled={!canManageRoles}
                             checked={hasPermission(sub.supportedActions.notify)}
                             onChange={() => togglePermissionKey(sub.supportedActions.notify!)}
-                            className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer disabled:cursor-not-allowed"
+                            className="w-4 h-4 rounded border-slate-300 dark:border-slate-700 dark:bg-slate-900 text-indigo-600 focus:ring-indigo-500 cursor-pointer disabled:cursor-not-allowed transition-all"
                           />
                         ) : (
                           <span className="text-slate-300 dark:text-slate-700 select-none font-bold">—</span>
@@ -788,7 +831,7 @@ export function PermissionsClient({ initialRoles }: PermissionsClientProps) {
                           disabled={!canManageRoles}
                           checked={isRowAll}
                           onChange={() => toggleSubModuleAll(sub)}
-                          className="w-4 h-4 rounded border-indigo-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer disabled:cursor-not-allowed"
+                          className="w-4 h-4 rounded border-indigo-300 dark:border-indigo-700 dark:bg-slate-900 text-indigo-600 focus:ring-indigo-500 cursor-pointer disabled:cursor-not-allowed transition-all"
                           title="Toggle all actions for this page"
                         />
                       </td>
@@ -804,89 +847,53 @@ export function PermissionsClient({ initialRoles }: PermissionsClientProps) {
   };
 
   return (
-    <div className="space-y-6 pb-28 text-left">
-      {/* Top Breadcrumbs & Quick Hub Links */}
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 dark:border-slate-800 pb-3">
-        <div className="flex items-center gap-2 text-xs font-semibold text-slate-500 dark:text-slate-400">
-          <Link href="/dashboard" className="hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">
-            Admin
-          </Link>
-          <span>/</span>
-          <Link href="/departments" className="hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">
-            Organization
-          </Link>
-          <span>/</span>
-          <span className="text-slate-900 dark:text-slate-200 font-bold">Access Control & Policy Matrix</span>
-        </div>
-
-        {/* Quick Module Jump Links */}
-        <div className="flex items-center gap-2">
-          <Link
-            href="/departments"
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition-colors"
-          >
-            <Building2 className="w-3.5 h-3.5 text-indigo-500" />
-            <span>Departments</span>
-          </Link>
-
-          <Link
-            href="/roles"
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition-colors"
-          >
-            <ShieldCheck className="w-3.5 h-3.5 text-indigo-500" />
-            <span>Roles Directory</span>
-          </Link>
-
-          <Link
-            href="/shifts"
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition-colors"
-          >
-            <ShieldCheck className="w-3.5 h-3.5 text-indigo-500" />
-            <span>Shifts</span>
-          </Link>
-
-          {canManageRoles && (
-            <Link
-              href="/roles/form"
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/60 dark:hover:bg-indigo-900 text-indigo-600 dark:text-indigo-300 border border-indigo-200/80 dark:border-indigo-800/80 transition-colors"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              <span>Add Role</span>
-            </Link>
-          )}
-        </div>
+    <div className="space-y-5 pb-8 text-left">
+      {/* Clean Top Breadcrumbs */}
+      <div className="flex items-center gap-2 text-xs font-semibold text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-800 pb-3">
+        <Link href="/dashboard" className="hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">
+          Admin
+        </Link>
+        <span>/</span>
+        <Link href="/roles" className="hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">
+          Organization
+        </Link>
+        <span>/</span>
+        <span className="text-slate-900 dark:text-slate-200 font-bold">Role Permissions Matrix</span>
       </div>
 
-      {/* Top Banner: Header + Target Role Selector */}
-      <div className="rounded-2xl border border-slate-200/90 dark:border-slate-800/90 bg-white dark:bg-[#0c1322] shadow-sm p-5 sm:p-6 transition-colors">
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
-          {/* Header Title & Counter */}
+      {/* Unified Master Card: Housing Header, Filters, Presets, Search, Matrix Table & Docked Footer */}
+      <div className="rounded-2xl border border-slate-200/90 dark:border-slate-800/90 bg-white dark:bg-[#0c1322] shadow-sm overflow-hidden transition-colors">
+        {/* Section 1: Top Header & Role Selectors */}
+        <div className="p-5 sm:p-6 border-b border-slate-200/80 dark:border-slate-800 flex flex-col xl:flex-row xl:items-center justify-between gap-6">
+          {/* Header Title & Description */}
           <div className="space-y-1">
             <div className="flex items-center gap-2.5">
-              <div className="w-9 h-9 rounded-xl bg-indigo-600/10 dark:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 flex items-center justify-center font-bold shrink-0 border border-indigo-200 dark:border-indigo-800">
+              <div className="w-10 h-10 rounded-xl bg-indigo-600/10 dark:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 flex items-center justify-center font-bold shrink-0 border border-indigo-200 dark:border-indigo-800">
                 <ShieldCheck className="w-5 h-5" />
               </div>
-              <h1 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-slate-100 tracking-tight">
-                Role Permissions Matrix
-              </h1>
+              <div>
+                <h1 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-slate-100 tracking-tight">
+                  Role Permissions Matrix
+                </h1>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  Configure granular operational permissions, data isolation, and administrative governance policies per role.
+                </p>
+              </div>
             </div>
-            <p className="text-xs text-slate-500 dark:text-slate-400 max-w-2xl">
-              Configure granular operational permissions, data isolation, and administrative governance policies per role.
-            </p>
           </div>
 
-          {/* Target Role Selector & Global Active Count */}
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-            {/* Department Filter (Optional quick filter) */}
+          {/* Target Role Selector & Global Active Count (Clean vertical label-over-input alignment) */}
+          <div className="flex flex-wrap items-end gap-3 sm:gap-4">
+            {/* Department Filter */}
             {departmentsList.length > 1 && (
-              <div className="space-y-1">
-                <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+              <div className="flex flex-col gap-1.5">
+                <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 select-none">
                   DEPT FILTER
-                </span>
+                </label>
                 <select
                   value={departmentFilter}
                   onChange={(e) => setDepartmentFilter(e.target.value)}
-                  className="h-10 px-3 text-xs font-bold rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-900 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-indigo-500/30 focus:outline-none cursor-pointer"
+                  className="h-10 px-3.5 text-xs font-bold rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-900 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-indigo-500/30 focus:outline-none cursor-pointer min-w-[180px]"
                 >
                   <option value="all">All Departments ({roles.length})</option>
                   {departmentsList.map((d) => (
@@ -898,15 +905,15 @@ export function PermissionsClient({ initialRoles }: PermissionsClientProps) {
               </div>
             )}
 
-            {/* Target Role Dropdown */}
-            <div className="space-y-1">
-              <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+            {/* Target Role Dropdown (Generous Width, Clean Border) */}
+            <div className="flex flex-col gap-1.5">
+              <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 select-none">
                 TARGET ROLE
-              </span>
+              </label>
               <select
                 value={selectedRoleId}
                 onChange={(e) => setSelectedRoleId(e.target.value)}
-                className="h-10 px-3.5 text-xs font-bold rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-900 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-indigo-500/30 focus:outline-none cursor-pointer min-w-[220px]"
+                className="h-10 px-3.5 text-xs font-bold rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-900 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-indigo-500/30 focus:outline-none cursor-pointer min-w-[260px] sm:min-w-[340px]"
               >
                 {filteredRoles.map((r) => (
                   <option key={r.id} value={r.id}>
@@ -917,11 +924,11 @@ export function PermissionsClient({ initialRoles }: PermissionsClientProps) {
             </div>
 
             {/* Total Active Capabilities Pill */}
-            <div className="space-y-1">
-              <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+            <div className="flex flex-col gap-1.5">
+              <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 select-none">
                 ACTIVE CAPABILITIES
-              </span>
-              <div className="h-10 px-3.5 rounded-xl border border-indigo-200 dark:border-indigo-800/80 bg-indigo-50/60 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 flex items-center justify-center gap-1.5 font-bold text-xs">
+              </label>
+              <div className="h-10 px-3.5 rounded-xl border border-indigo-200 dark:border-indigo-800/80 bg-indigo-50/60 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 flex items-center justify-center gap-1.5 font-bold text-xs whitespace-nowrap">
                 <KeyRound className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
                 <span>
                   {isWildcard ? "Full System Access (*)" : `${totalActiveCapabilities} Granted`}
@@ -931,25 +938,25 @@ export function PermissionsClient({ initialRoles }: PermissionsClientProps) {
           </div>
         </div>
 
-        {/* Selected Role Context Banner & Quick Preset Controls */}
+        {/* Section 2: Selected Role Context Banner & Quick Preset Controls */}
         {selectedRole && (
-          <div className="mt-5 pt-4 border-t border-slate-100 dark:border-slate-800/80 flex flex-col md:flex-row md:items-center justify-between gap-4 text-xs">
+          <div className="p-4 sm:px-6 bg-slate-50/60 dark:bg-slate-900/40 border-b border-slate-200/80 dark:border-slate-800 flex flex-col xl:flex-row xl:items-center justify-between gap-4 text-xs">
             <div className="flex flex-wrap items-center gap-2.5">
               <span className="text-slate-500 dark:text-slate-400">
                 Configuring Policy for:{" "}
                 <strong className="text-slate-900 dark:text-white font-bold">{selectedRole.name}</strong>
               </span>
-              <span className="font-mono text-[11px] px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 lowercase">
+              <span className="font-mono text-[11px] px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 lowercase border border-slate-200 dark:border-slate-700">
                 {selectedRole.slug}
               </span>
               {selectedRole.department && (
-                <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-900 px-2 py-0.5 rounded-md border border-slate-200 dark:border-slate-800">
+                <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-600 dark:text-slate-300 bg-white dark:bg-slate-900 px-2 py-0.5 rounded-md border border-slate-200 dark:border-slate-800">
                   <Building2 className="w-3 h-3 text-indigo-500" />
                   {selectedRole.department.name}
                 </span>
               )}
               {selectedRole._count?.staff !== undefined && (
-                <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-500 dark:text-slate-400">
+                <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-600 dark:text-slate-300 bg-white dark:bg-slate-900 px-2 py-0.5 rounded-md border border-slate-200 dark:border-slate-800">
                   <Users className="w-3 h-3 text-emerald-500" />
                   {selectedRole._count.staff} assigned staff
                 </span>
@@ -1028,181 +1035,191 @@ export function PermissionsClient({ initialRoles }: PermissionsClientProps) {
             </div>
           </div>
         )}
-      </div>
 
-      {/* Interactive Search & View Switcher Bar */}
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white dark:bg-[#0c1322] border border-slate-200/90 dark:border-slate-800/90 p-3 rounded-2xl shadow-sm">
-        {/* Search Modules Live Input */}
-        <div className="relative flex-1">
-          <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search permissions by page name, code, or keyword (e.g. products, roles, delete)..."
-            className="w-full h-10 pl-9 pr-8 text-xs font-medium rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-900/80 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 transition-colors"
-          />
-          {searchQuery && (
+        {/* Section 3: Interactive Search & View Switcher Bar */}
+        <div className="p-4 sm:px-6 border-b border-slate-200/80 dark:border-slate-800 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white dark:bg-[#0c1322]">
+          {/* Search Modules Live Input */}
+          <div className="relative flex-1">
+            <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search permissions by page name, code, or keyword (e.g. products, roles, delete)..."
+              className="w-full h-10 pl-9 pr-8 text-xs font-medium rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-900/80 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 transition-colors"
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery("")}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+              >
+                Clear
+              </button>
+            )}
+          </div>
+
+          {/* View Mode Switcher: Tabbed Domain vs All Domains */}
+          <div className="flex items-center bg-slate-100 dark:bg-slate-900 p-1 rounded-xl shrink-0 self-end sm:self-auto border border-slate-200/60 dark:border-slate-800">
             <button
               type="button"
-              onClick={() => setSearchQuery("")}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+              onClick={() => setViewMode("tabbed")}
+              className={cn(
+                "px-3 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer flex items-center gap-1.5",
+                viewMode === "tabbed"
+                  ? "bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 shadow-xs"
+                  : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+              )}
             >
-              Clear
+              <Layers className="w-3.5 h-3.5" />
+              <span>Tabbed Domains</span>
             </button>
-          )}
+
+            <button
+              type="button"
+              onClick={() => setViewMode("all")}
+              className={cn(
+                "px-3 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer flex items-center gap-1.5",
+                viewMode === "all"
+                  ? "bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 shadow-xs"
+                  : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+              )}
+            >
+              <SlidersHorizontal className="w-3.5 h-3.5" />
+              <span>All Domains ({PERMISSION_MATRIX_REGISTRY.length})</span>
+            </button>
+          </div>
         </div>
 
-        {/* View Mode Switcher: Tabbed Domain vs All Domains */}
-        <div className="flex items-center bg-slate-100 dark:bg-slate-900 p-1 rounded-xl shrink-0 self-end sm:self-auto border border-slate-200/60 dark:border-slate-800">
-          <button
-            type="button"
-            onClick={() => setViewMode("tabbed")}
-            className={cn(
-              "px-3 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer flex items-center gap-1.5",
-              viewMode === "tabbed"
-                ? "bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 shadow-xs"
-                : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
-            )}
-          >
-            <Layers className="w-3.5 h-3.5" />
-            <span>Tabbed Domains</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setViewMode("all")}
-            className={cn(
-              "px-3 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer flex items-center gap-1.5",
-              viewMode === "all"
-                ? "bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 shadow-xs"
-                : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
-            )}
-          >
-            <SlidersHorizontal className="w-3.5 h-3.5" />
-            <span>All Domains ({PERMISSION_MATRIX_REGISTRY.length})</span>
-          </button>
-        </div>
-      </div>
-
-      {/* Main Workspace Layout */}
-      {viewMode === "all" || searchQuery ? (
-        // ALL DOMAINS / SEARCH RESULTS VIEW
-        <div className="space-y-6">
-          {filteredCategories.length === 0 ? (
-            <div className="p-12 text-center rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#0c1322]">
-              <ShieldAlert className="w-8 h-8 text-slate-400 mx-auto mb-2" />
-              <p className="text-sm font-bold text-slate-700 dark:text-slate-300">
-                No matching permission modules found
-              </p>
-              <p className="text-xs text-slate-400 mt-1">
-                Try searching with a different term like &quot;order&quot;, &quot;catalog&quot;, or &quot;staff&quot;.
-              </p>
+        {/* Section 4: Main Workspace Layout (Inside Master Card) */}
+        <div className="p-5 sm:p-6 bg-slate-50/30 dark:bg-slate-950/20">
+          {viewMode === "all" || searchQuery ? (
+            // ALL DOMAINS / SEARCH RESULTS VIEW
+            <div className="space-y-6">
+              {filteredCategories.length === 0 ? (
+                <div className="p-12 text-center rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#0c1322]">
+                  <ShieldAlert className="w-8 h-8 text-slate-400 mx-auto mb-2" />
+                  <p className="text-sm font-bold text-slate-700 dark:text-slate-300">
+                    No matching permission modules found
+                  </p>
+                  <p className="text-xs text-slate-400 mt-1">
+                    Try searching with a different term like &quot;order&quot;, &quot;catalog&quot;, or &quot;staff&quot;.
+                  </p>
+                </div>
+              ) : (
+                filteredCategories.map((group) => renderCategoryMatrixTable(group))
+              )}
             </div>
           ) : (
-            filteredCategories.map((group) => renderCategoryMatrixTable(group))
-          )}
-        </div>
-      ) : (
-        // TABBED DOMAINS VIEW: Category Vertical Tabs (Left) + Matrix Table (Right)
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-          {/* Left Category Navigation Rail (4 cols) */}
-          <div className="lg:col-span-4 space-y-2 rounded-2xl border border-slate-200/90 dark:border-slate-800/90 bg-white dark:bg-[#0c1322] p-3 shadow-sm">
-            <div className="px-3 py-2 text-[10px] font-black uppercase tracking-wider text-slate-400">
-              SYSTEM DOMAINS ({PERMISSION_MATRIX_REGISTRY.length})
-            </div>
+            // TABBED DOMAINS VIEW: Category Vertical Tabs (Left) + Matrix Table (Right)
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+              {/* Left Category Navigation Rail (4 cols) */}
+              <div className="lg:col-span-4 space-y-2 rounded-xl border border-slate-200/90 dark:border-slate-800/90 bg-white dark:bg-[#0c1322] p-3 shadow-xs">
+                <div className="px-3 py-2 text-[10px] font-black uppercase tracking-wider text-slate-400">
+                  SYSTEM DOMAINS ({PERMISSION_MATRIX_REGISTRY.length})
+                </div>
 
-            <div className="space-y-1">
-              {PERMISSION_MATRIX_REGISTRY.map((group) => {
-                const isActive = group.id === activeCategoryId;
-                const stats = categoryStats[group.id] || { total: 0, active: 0, percentage: 0 };
+                <div className="space-y-1">
+                  {PERMISSION_MATRIX_REGISTRY.map((group) => {
+                    const isActive = group.id === activeCategoryId;
+                    const stats = categoryStats[group.id] || { total: 0, active: 0, percentage: 0 };
 
-                return (
-                  <button
-                    key={group.id}
-                    type="button"
-                    onClick={() => setActiveCategoryId(group.id)}
-                    className={cn(
-                      "w-full flex items-center justify-between p-3 rounded-xl text-left transition-all duration-150 cursor-pointer border",
-                      isActive
-                        ? "bg-indigo-50/80 dark:bg-indigo-950/50 border-indigo-200 dark:border-indigo-800/80 shadow-xs"
-                        : "bg-transparent border-transparent hover:bg-slate-50 dark:hover:bg-slate-900 hover:border-slate-200 dark:hover:border-slate-800"
-                    )}
-                  >
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div
+                    return (
+                      <button
+                        key={group.id}
+                        type="button"
+                        onClick={() => setActiveCategoryId(group.id)}
                         className={cn(
-                          "w-8 h-8 rounded-lg flex items-center justify-center shrink-0",
+                          "w-full flex items-center justify-between p-3 rounded-xl text-left transition-all duration-150 cursor-pointer border",
                           isActive
-                            ? "bg-indigo-600 text-white"
-                            : "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400"
+                            ? "bg-indigo-50/80 dark:bg-indigo-950/50 border-indigo-200 dark:border-indigo-800/80 shadow-xs"
+                            : "bg-transparent border-transparent hover:bg-slate-50 dark:hover:bg-slate-900 hover:border-slate-200 dark:border-slate-800"
                         )}
                       >
-                        {getCategoryIcon(group.iconName, "w-4 h-4")}
-                      </div>
-                      <div className="min-w-0">
-                        <p
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div
+                            className={cn(
+                              "w-8 h-8 rounded-lg flex items-center justify-center shrink-0",
+                              isActive
+                                ? "bg-indigo-600 text-white"
+                                : "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400"
+                            )}
+                          >
+                            {getCategoryIcon(group.iconName, "w-4 h-4")}
+                          </div>
+                          <div className="min-w-0">
+                            <p
+                              className={cn(
+                                "text-xs font-bold truncate",
+                                isActive
+                                  ? "text-indigo-950 dark:text-indigo-100"
+                                  : "text-slate-800 dark:text-slate-200"
+                              )}
+                            >
+                              {group.name}
+                            </p>
+                            <p className="text-[10px] text-slate-400 truncate">
+                              {group.subModules.length} Sub-modules
+                            </p>
+                          </div>
+                        </div>
+
+                        {/* Percentage Pill */}
+                        <span
                           className={cn(
-                            "text-xs font-bold truncate",
-                            isActive
-                              ? "text-indigo-950 dark:text-indigo-100"
-                              : "text-slate-800 dark:text-slate-200"
+                            "text-[10px] font-black px-2 py-0.5 rounded-full shrink-0 border",
+                            stats.percentage === 100
+                              ? "bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800"
+                              : stats.percentage > 0
+                              ? "bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 border-indigo-200 dark:border-indigo-800"
+                              : "bg-slate-100 dark:bg-slate-800 text-slate-400 border-slate-200 dark:border-slate-700"
                           )}
                         >
-                          {group.name}
-                        </p>
-                        <p className="text-[10px] text-slate-400 truncate">
-                          {group.subModules.length} Sub-modules
-                        </p>
-                      </div>
-                    </div>
+                          {stats.percentage}%
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
 
-                    {/* Percentage Pill */}
-                    <span
-                      className={cn(
-                        "text-[10px] font-black px-2 py-0.5 rounded-full shrink-0 border",
-                        stats.percentage === 100
-                          ? "bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800"
-                          : stats.percentage > 0
-                          ? "bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 border-indigo-200 dark:border-indigo-800"
-                          : "bg-slate-100 dark:bg-slate-800 text-slate-400 border-slate-200 dark:border-slate-700"
-                      )}
-                    >
-                      {stats.percentage}%
-                    </span>
-                  </button>
-                );
-              })}
+              {/* Right Active Category Matrix Table (8 cols) */}
+              <div className="lg:col-span-8">
+                {renderCategoryMatrixTable(activeCategory)}
+              </div>
             </div>
-          </div>
-
-          {/* Right Active Category Matrix Table (8 cols) */}
-          <div className="lg:col-span-8">
-            {renderCategoryMatrixTable(activeCategory)}
-          </div>
+          )}
         </div>
-      )}
 
-      {/* Sticky Bottom Save Action Bar */}
-      <div className="fixed bottom-4 right-6 left-6 md:left-72 z-40">
-        <div className="rounded-2xl bg-slate-900/95 dark:bg-slate-950/95 backdrop-blur-md border border-slate-800 text-white shadow-2xl p-4 flex flex-col sm:flex-row items-center justify-between gap-4 animate-in slide-in-from-bottom-3 duration-200">
+        {/* Section 5: Integrated Master Card Docked Footer (NO detached floating capsule) */}
+        <div className="border-t border-slate-200 dark:border-slate-800 bg-slate-50/90 dark:bg-[#090f1d] p-4 sm:px-6 flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-indigo-500/20 text-indigo-400 flex items-center justify-center font-bold shrink-0 border border-indigo-500/30">
+            <div
+              className={cn(
+                "w-8 h-8 rounded-lg flex items-center justify-center font-bold shrink-0 border",
+                hasChanges
+                  ? "bg-amber-500/20 text-amber-500 border-amber-500/30"
+                  : "bg-emerald-500/20 text-emerald-500 border-emerald-500/30"
+              )}
+            >
               <Shield className="w-4 h-4" />
             </div>
             <div>
-              <p className="text-xs font-bold text-white">
+              <p className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-2">
                 {!canManageRoles
                   ? "Read-Only Security View"
                   : hasChanges
                   ? "Unsaved Policy Changes Pending"
                   : "Policy Synced & Active"}
+                {hasChanges && (
+                  <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
+                )}
               </p>
-              <p className="text-[11px] text-slate-400">
+              <p className="text-[11px] text-slate-500 dark:text-slate-400">
                 {!canManageRoles
                   ? "You do not have administrative permission to modify governance policies."
                   : hasChanges
-                  ? "Press F2 or click Save to apply these security policies immediately."
+                  ? "Press Ctrl+S / F2 or click Save Changes to apply these security policies immediately."
                   : `Role "${selectedRole?.name}" has ${totalActiveCapabilities} capabilities configured.`}
               </p>
             </div>
@@ -1216,7 +1233,7 @@ export function PermissionsClient({ initialRoles }: PermissionsClientProps) {
               onClick={handleReset}
               disabled={!hasChanges || isSaving || !canManageRoles}
               leftIcon={<RotateCcw className="w-3.5 h-3.5" />}
-              className="text-slate-300 hover:text-white hover:bg-slate-800"
+              className="text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-800 cursor-pointer disabled:cursor-not-allowed"
             >
               Reset (F4)
             </Button>
@@ -1228,9 +1245,9 @@ export function PermissionsClient({ initialRoles }: PermissionsClientProps) {
               onClick={handleSavePolicy}
               loading={isSaving}
               disabled={!hasChanges || isSaving || !canManageRoles}
-              className="font-bold px-5 bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-600/30 disabled:opacity-50"
+              className="font-bold px-5 bg-indigo-600 hover:bg-indigo-500 text-white shadow-md shadow-indigo-600/20 disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed"
             >
-              Save Permissions (F2)
+              Save Permissions (Ctrl+S / F2)
             </Button>
           </div>
         </div>

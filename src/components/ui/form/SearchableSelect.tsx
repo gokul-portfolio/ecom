@@ -20,6 +20,7 @@ export interface SearchableSelectProps {
   placeholder?: string;
   searchPlaceholder?: string;
   size?: "sm" | "md" | "lg";
+  rounded?: "none" | "sm" | "md" | "lg" | "xl" | "full";
   disabled?: boolean;
   clearable?: boolean;
   error?: boolean | string;
@@ -37,6 +38,7 @@ export const SearchableSelect = forwardRef<HTMLDivElement, SearchableSelectProps
       placeholder = "Select an option...",
       searchPlaceholder = "Type to search...",
       size = "md",
+      rounded = "xl",
       disabled = false,
       clearable = true,
       error,
@@ -120,10 +122,13 @@ export const SearchableSelect = forwardRef<HTMLDivElement, SearchableSelectProps
     // Keyboard navigation within filtered list
     const handleTriggerKeyDown = (e: React.KeyboardEvent) => {
       if (disabled) return;
-      if (e.key === "Enter" || e.key === " " || e.key === "ArrowDown") {
+      if (e.key === "ArrowDown" || e.key === "ArrowUp" || e.key === " " || (e.altKey && e.key === "ArrowDown")) {
         e.preventDefault();
+        e.stopPropagation();
         setIsOpen(true);
+        return;
       }
+      // When closed, ArrowLeft, ArrowRight, and Enter bubble up to switch form fields!
     };
 
     const handleInputKeyDown = (e: React.KeyboardEvent) => {
@@ -173,9 +178,18 @@ export const SearchableSelect = forwardRef<HTMLDivElement, SearchableSelectProps
     };
 
     const sizeClasses = {
-      sm: "h-8 px-2.5 text-xs rounded-sm",
-      md: "h-10 px-3 text-xs rounded-md",
-      lg: "h-12 px-3.5 text-sm rounded-md",
+      sm: "h-8 px-2.5 text-xs",
+      md: "h-10 px-3 text-xs",
+      lg: "h-12 px-3.5 text-sm",
+    };
+
+    const roundedClasses = {
+      none: "rounded-none",
+      sm: "rounded-sm",
+      md: "rounded-md",
+      lg: "rounded-lg",
+      xl: "rounded-xl",
+      full: "rounded-full",
     };
 
     return (
@@ -199,7 +213,8 @@ export const SearchableSelect = forwardRef<HTMLDivElement, SearchableSelectProps
               ? "border-indigo-500 ring-2 ring-indigo-500/20"
               : "border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700",
             disabled && "opacity-50 cursor-not-allowed bg-slate-50 dark:bg-slate-900/50",
-            sizeClasses[size]
+            sizeClasses[size],
+            roundedClasses[rounded]
           )}
         >
           <div className="flex items-center gap-2 overflow-hidden mr-2">
@@ -219,8 +234,9 @@ export const SearchableSelect = forwardRef<HTMLDivElement, SearchableSelectProps
             {clearable && selectedOption && !disabled && (
               <button
                 type="button"
+                tabIndex={-1}
                 onClick={handleClear}
-                className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-full"
+                className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-full cursor-pointer"
                 title="Clear selection"
               >
                 <X className="w-3 h-3" />

@@ -12,15 +12,18 @@ export function KeyboardShortcutsModal() {
   const [searchTerm, setSearchTerm] = useState("");
 
   // Register Global Hotkeys (F6, F1, Shift+?, Escape)
-  useKeyboardShortcuts({
-    "f6, f1, shift+?": (e) => {
-      e.preventDefault();
-      setIsOpen((prev) => !prev);
+  useKeyboardShortcuts(
+    {
+      "f6, f1, shift+?": (e) => {
+        e.preventDefault();
+        setIsOpen((prev) => !prev);
+      },
+      escape: () => {
+        if (isOpen) setIsOpen(false);
+      },
     },
-    escape: () => {
-      if (isOpen) setIsOpen(false);
-    },
-  });
+    { enableInInputs: true, preventDefault: true }
+  );
 
   // Listen for custom event triggered from Navbar Header button
   useEffect(() => {

@@ -10,6 +10,7 @@ const onboardingSchema = z.object({
   logoUrl: z.string().optional().nullable(),
   logoPublicId: z.string().optional().nullable(),
   faviconUrl: z.string().optional().nullable(),
+  faviconPublicId: z.string().optional().nullable(),
   supportEmail: z.string().email("Valid support email is required"),
   supportPhone: z.string().optional().nullable(),
   salesEmail: z.string().email().optional().nullable(),
@@ -70,6 +71,7 @@ export async function POST(request: NextRequest) {
         logoUrl: data.logoUrl,
         logoPublicId: data.logoPublicId,
         faviconUrl: data.faviconUrl,
+        faviconPublicId: data.faviconPublicId,
         supportEmail: data.supportEmail,
         supportPhone: data.supportPhone,
         salesEmail: data.salesEmail,
@@ -97,6 +99,7 @@ export async function POST(request: NextRequest) {
         logoUrl: data.logoUrl,
         logoPublicId: data.logoPublicId,
         faviconUrl: data.faviconUrl,
+        faviconPublicId: data.faviconPublicId,
         supportEmail: data.supportEmail,
         supportPhone: data.supportPhone,
         salesEmail: data.salesEmail,
@@ -119,16 +122,17 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    // Mark current admin user as onboarded
-    await prisma.adminUser.update({
+    // Mark current super admin as onboarded
+    await prisma.superAdmin.update({
       where: { id: payload.adminId },
       data: { hasCompletedOnboarding: true },
-    });
+    }).catch(() => null);
 
     // Record audit event
     await prisma.adminAuditLog.create({
       data: {
-        adminId: payload.adminId,
+        actorType: "SUPER_ADMIN",
+        superAdminId: payload.adminId,
         action: "STORE_ONBOARDING_COMPLETED",
         targetEntity: "StoreSettings",
         targetId: settings.id,

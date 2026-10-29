@@ -117,7 +117,7 @@ export function MultiSelect({
           }
         }}
         className={cn(
-          "min-h-10 px-3 py-1.5 rounded-md border transition-all flex items-center justify-between gap-2 cursor-text",
+          "min-h-10 px-3 py-1.5 rounded-xl border transition-all flex items-center justify-between gap-2 cursor-text",
           "bg-white dark:bg-slate-900 font-medium",
           error
             ? "border-rose-500 ring-rose-500/20 ring-2"
@@ -137,6 +137,7 @@ export function MultiSelect({
               {opt.label}
               <button
                 type="button"
+                tabIndex={-1}
                 onClick={(e) => removeTag(e, opt.value)}
                 className="hover:text-indigo-900 dark:hover:text-white rounded-full p-0.5 cursor-pointer"
                 title={`Remove ${opt.label}`}

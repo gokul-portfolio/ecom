@@ -161,7 +161,7 @@ export function RolesClient({
             )}
           </div>
           {row.original.description && (
-            <span className="text-[11px] text-slate-400 line-clamp-1 max-w-sm">
+            <span className="text-[11px] text-slate-400 line-clamp-1 max-w-[160px] sm:max-w-xs md:max-w-sm">
               {row.original.description}
             </span>
           )}

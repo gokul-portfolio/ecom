@@ -5,20 +5,23 @@ import { useRouter } from "next/navigation";
 
 export interface AdminUserSession {
   id: string;
-  email: string;
+  email: string | null;
+  username?: string | null;
+  hasLoginAccess?: boolean;
   fullName: string;
   phone?: string | null;
   avatarUrl?: string | null;
-  department: {
+  isSuperAdmin?: boolean;
+  department?: {
     code: string;
     name: string;
-  };
-  role: {
+  } | null;
+  role?: {
     slug: string;
     name: string;
-    isSystem: boolean;
+    isSystem?: boolean;
     permissions: string[];
-  };
+  } | null;
   hasCompletedOnboarding?: boolean;
 }
 
@@ -83,7 +86,8 @@ export function AdminAuthProvider({ children }: { children: React.ReactNode }) {
   const hasPermission = useCallback(
     (permission: string): boolean => {
       if (!admin) return false;
-      const perms = admin.role.permissions || [];
+      if (admin.isSuperAdmin) return true;
+      const perms = admin.role?.permissions || [];
       // Full system root access
       if (perms.includes("*")) return true;
       // Exact match
@@ -97,12 +101,12 @@ export function AdminAuthProvider({ children }: { children: React.ReactNode }) {
   );
 
   // Login action
-  const login = async (email: string, pass: string) => {
+  const login = async (identifierOrEmail: string, pass: string) => {
     try {
       const res = await fetch("/api/admin/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password: pass }),
+        body: JSON.stringify({ identifier: identifierOrEmail, email: identifierOrEmail, password: pass }),
       });
 
       const json = await res.json();

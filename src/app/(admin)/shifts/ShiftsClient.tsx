@@ -158,7 +158,7 @@ export function ShiftsClient({
             </span>
           </div>
           {row.original.description && (
-            <span className="text-[11px] text-slate-400 line-clamp-1 max-w-md mt-0.5">
+            <span className="text-[11px] text-slate-400 line-clamp-1 max-w-[170px] sm:max-w-xs md:max-w-md mt-0.5">
               {row.original.description}
             </span>
           )}

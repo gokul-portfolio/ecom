@@ -1,12 +1,5 @@
 import { v2 as cloudinary } from "cloudinary";
 
-cloudinary.config({
-  cloud_name: process.env.CLOUDINARY_CLOUD_NAME || "demo",
-  api_key: process.env.CLOUDINARY_API_KEY || "123456789012345",
-  api_secret: process.env.CLOUDINARY_API_SECRET || "your_cloudinary_api_secret",
-  secure: true,
-});
-
 export interface CloudinaryUploadResult {
   secure_url: string;
   public_id: string;
@@ -16,47 +9,61 @@ export interface CloudinaryUploadResult {
 }
 
 /**
- * Uploads a buffer to Cloudinary with fallback handling for development
+ * Ensures Cloudinary is properly configured with live environment variables
+ */
+export function configureCloudinary() {
+  const cloud_name = process.env.CLOUDINARY_CLOUD_NAME;
+  const api_key = process.env.CLOUDINARY_API_KEY;
+  const api_secret = process.env.CLOUDINARY_API_SECRET;
+
+  if (!cloud_name || !api_key || !api_secret) {
+    throw new Error(
+      "Missing Cloudinary credentials. Please verify CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, and CLOUDINARY_API_SECRET in .env"
+    );
+  }
+
+  cloudinary.config({
+    cloud_name,
+    api_key,
+    api_secret,
+    secure: true,
+  });
+
+  return cloudinary;
+}
+
+// Initial configuration
+try {
+  configureCloudinary();
+} catch {
+  // Gracefully ignored during initial static evaluation if envs are not yet injected
+}
+
+/**
+ * Uploads a buffer directly to Cloudinary CDN
  */
 export async function uploadToCloudinary(
   buffer: Buffer,
-  folder = "ecommerce/store_branding"
-): Promise<CloudinaryUploadResult> {
-  // If demo credentials or development without live api secret, provide high-quality fallback data URI
-  const isLiveConfigured =
-    process.env.CLOUDINARY_API_SECRET &&
-    process.env.CLOUDINARY_API_SECRET !== "your_cloudinary_api_secret" &&
-    process.env.CLOUDINARY_CLOUD_NAME !== "demo";
-
-  if (!isLiveConfigured) {
-    // Generate an optimized base64 data URI for instant development testing
-    const mimeType = "image/png";
-    const base64 = buffer.toString("base64");
-    const dataUrl = `data:${mimeType};base64,${base64}`;
-
-    return {
-      secure_url: dataUrl,
-      public_id: `dev_fallback_${Date.now()}`,
-      format: "png",
-    };
+  folder = "ecommerce/store_branding",
+  options?: {
+    resourceType?: "image" | "auto" | "raw";
+    publicId?: string;
   }
+): Promise<CloudinaryUploadResult> {
+  const client = configureCloudinary();
 
   return new Promise((resolve, reject) => {
-    const uploadStream = cloudinary.uploader.upload_stream(
+    const uploadStream = client.uploader.upload_stream(
       {
         folder,
-        resource_type: "image",
-        transformation: [{ quality: "auto", fetch_format: "auto" }],
+        resource_type: options?.resourceType || "auto",
+        public_id: options?.publicId,
+        overwrite: true,
       },
       (error, result) => {
         if (error || !result) {
-          console.warn("[Cloudinary] Live upload failed, using fallback:", error);
-          const base64 = buffer.toString("base64");
-          resolve({
-            secure_url: `data:image/png;base64,${base64}`,
-            public_id: `fallback_${Date.now()}`,
-            format: "png",
-          });
+          console.error("[Cloudinary] Upload failed:", error);
+          reject(new Error(error?.message || "Cloudinary upload failed"));
         } else {
           resolve({
             secure_url: result.secure_url,
@@ -71,6 +78,24 @@ export async function uploadToCloudinary(
 
     uploadStream.end(buffer);
   });
+}
+
+/**
+ * Cleanly destroys/removes an existing asset from Cloudinary CDN by its public ID
+ */
+export async function deleteFromCloudinary(publicId: string): Promise<boolean> {
+  if (!publicId || publicId.startsWith("dev_fallback_") || publicId.startsWith("fallback_")) {
+    return true;
+  }
+
+  try {
+    const client = configureCloudinary();
+    const res = await client.uploader.destroy(publicId);
+    return res.result === "ok";
+  } catch (error) {
+    console.warn("[Cloudinary] Failed to delete asset:", publicId, error);
+    return false;
+  }
 }
 
 export default cloudinary;

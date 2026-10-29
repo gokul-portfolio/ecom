@@ -36,14 +36,20 @@ export const SHORTCUT_REGISTRY: ShortcutDefinition[] = [
   {
     id: "next-field",
     category: "Form Entry",
-    keys: ["↓", "or", "Enter"],
-    description: "Move focus to next input field without submitting",
+    keys: ["→", "or", "↓", "or", "Enter"],
+    description: "Move focus to next input field / exit textarea boundary",
   },
   {
     id: "prev-field",
     category: "Form Entry",
-    keys: ["↑", "or", "Shift", "Enter"],
-    description: "Move focus to previous input field",
+    keys: ["←", "or", "↑", "or", "Shift", "Enter"],
+    description: "Move focus to previous input field / exit textarea boundary",
+  },
+  {
+    id: "jump-textarea",
+    category: "Form Entry",
+    keys: ["Alt", "+", "Arrows"],
+    description: "Instantly jump out of multi-line textareas to next/prev field",
   },
   {
     id: "submit-form",

@@ -160,6 +160,7 @@ export function DatePicker({
           {valueString && !disabled && (
             <button
               type="button"
+              tabIndex={-1}
               onClick={clearDate}
               className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-full cursor-pointer"
               title="Clear date"

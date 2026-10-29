@@ -7,6 +7,7 @@
     "dev:socket": "node socket-server.js",
     "server": "node server.js",
     "build": "next build",
+    "test": "tsx --test tests/unit/*.test.ts",
     "start": "next start",
     "lint": "eslint",
     "db:push": "prisma db push",
@@ -46,6 +47,7 @@
     "eslint-config-next": "16.3.8",
     "prisma": "^6.19.3",
     "tailwindcss": "^4",
+    "tsx": "^4.23.15",
     "typescript": "^5"
   }
 }

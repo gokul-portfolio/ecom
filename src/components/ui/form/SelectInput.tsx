@@ -18,6 +18,7 @@ export interface SelectInputProps {
   onBlur?: (e: any) => void;
   name?: string;
   size?: "sm" | "md" | "lg";
+  rounded?: "none" | "sm" | "md" | "lg" | "xl" | "full";
   error?: boolean | string;
   placeholder?: string;
   disabled?: boolean;
@@ -36,6 +37,7 @@ export const SelectInput = forwardRef<HTMLInputElement, SelectInputProps>(
       onBlur,
       name,
       size = "md",
+      rounded = "xl",
       error,
       placeholder = "Select or type to filter...",
       disabled = false,
@@ -57,6 +59,7 @@ export const SelectInput = forwardRef<HTMLInputElement, SelectInputProps>(
 
     const containerRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
+    const highlightedOptionRef = useRef<HTMLDivElement>(null);
 
     // Sync with external controlled value
     useEffect(() => {
@@ -89,6 +92,23 @@ export const SelectInput = forwardRef<HTMLInputElement, SelectInputProps>(
       const q = searchQuery.toLowerCase().trim();
       return options.filter((opt) => opt.label.toLowerCase().includes(q));
     }, [options, searchQuery]);
+
+    // Keep highlighted option scrolled into visible dropdown view
+    useEffect(() => {
+      if (isOpen && highlightedOptionRef.current) {
+        highlightedOptionRef.current.scrollIntoView({
+          block: "nearest",
+        });
+      }
+    }, [highlightedIndex, isOpen]);
+
+    const openDropdown = () => {
+      if (disabled) return;
+      const currentIdx = filteredOptions.findIndex((opt) => opt.value === activeValue);
+      setHighlightedIndex(currentIdx >= 0 ? currentIdx : 0);
+      setIsOpen(true);
+      inputRef.current?.focus();
+    };
 
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
       const query = e.target.value;
@@ -129,54 +149,93 @@ export const SelectInput = forwardRef<HTMLInputElement, SelectInputProps>(
     const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
       if (disabled) return;
 
+      // When dropdown is closed:
       if (!isOpen) {
         if (e.key === "ArrowDown") {
           e.preventDefault();
+          e.stopPropagation();
+          const currentIdx = filteredOptions.findIndex((opt) => opt.value === activeValue);
+          const nextIdx = currentIdx >= 0 && currentIdx < filteredOptions.length - 1 ? currentIdx + 1 : (currentIdx >= 0 ? currentIdx : 0);
+          setHighlightedIndex(nextIdx);
           setIsOpen(true);
-          setSearchQuery("");
-          setHighlightedIndex(0);
           return;
         }
-        // Let Enter, ArrowUp, ArrowLeft, ArrowRight bubble for form navigation
+
+        if (e.key === "ArrowUp") {
+          e.preventDefault();
+          e.stopPropagation();
+          const currentIdx = filteredOptions.findIndex((opt) => opt.value === activeValue);
+          const prevIdx = currentIdx > 0 ? currentIdx - 1 : 0;
+          setHighlightedIndex(prevIdx);
+          setIsOpen(true);
+          return;
+        }
+
+        if (e.key === " " || (e.altKey && e.key === "ArrowDown")) {
+          e.preventDefault();
+          e.stopPropagation();
+          openDropdown();
+          return;
+        }
+
+        // When closed, ArrowLeft, ArrowRight, and Enter bubble up to switch form fields!
         return;
       }
 
       // When dropdown is open:
       if (e.key === "ArrowDown") {
         e.preventDefault();
+        e.stopPropagation();
         setHighlightedIndex((prev) => (prev < filteredOptions.length - 1 ? prev + 1 : prev));
       } else if (e.key === "ArrowUp") {
         e.preventDefault();
+        e.stopPropagation();
         setHighlightedIndex((prev) => (prev > 0 ? prev - 1 : 0));
       } else if (e.key === "Enter") {
         e.preventDefault();
-        if (filteredOptions[highlightedIndex]) {
+        e.stopPropagation();
+        if (filteredOptions[highlightedIndex] && !filteredOptions[highlightedIndex].disabled) {
           handleSelectOption(filteredOptions[highlightedIndex]);
         } else {
           setIsOpen(false);
         }
       } else if (e.key === "Escape") {
+        e.preventDefault();
+        e.stopPropagation();
         setIsOpen(false);
         setSearchQuery("");
       } else if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
-        // Close dropdown and let event bubble to form navigation
+        // Close dropdown and let left/right arrow bubble to navigate to adjacent fields
+        setIsOpen(false);
+        setSearchQuery("");
+      } else if (e.key === "Tab") {
         setIsOpen(false);
         setSearchQuery("");
       }
     };
 
     const sizeClasses = {
-      sm: "h-8 px-2.5 text-xs rounded-sm",
-      md: "h-10 px-3.5 text-xs rounded-md",
-      lg: "h-12 px-4 text-sm rounded-md",
+      sm: "h-8 px-2.5 text-xs",
+      md: "h-10 px-3.5 text-xs",
+      lg: "h-12 px-4 text-sm",
+    };
+
+    const roundedClasses = {
+      none: "rounded-none",
+      sm: "rounded-sm",
+      md: "rounded-md",
+      lg: "rounded-lg",
+      xl: "rounded-xl",
+      full: "rounded-full",
     };
 
     return (
       <div
         ref={containerRef}
+        data-select-open={isOpen ? "true" : "false"}
         onBlur={(e) => {
-          // If focus leaves this container completely, close dropdown
-          if (containerRef.current && !containerRef.current.contains(e.relatedTarget as Node)) {
+          // If focus leaves this container completely (e.g. Tab key), close dropdown
+          if (e.relatedTarget && containerRef.current && !containerRef.current.contains(e.relatedTarget as Node)) {
             setIsOpen(false);
             setSearchQuery("");
           }
@@ -196,8 +255,11 @@ export const SelectInput = forwardRef<HTMLInputElement, SelectInputProps>(
         <div
           onClick={() => {
             if (!disabled) {
-              inputRef.current?.focus();
-              setIsOpen((prev) => !prev);
+              if (isOpen) {
+                setIsOpen(false);
+              } else {
+                openDropdown();
+              }
             }
           }}
           className={cn(
@@ -209,19 +271,21 @@ export const SelectInput = forwardRef<HTMLInputElement, SelectInputProps>(
               ? "border-indigo-500 ring-2 ring-indigo-500/20"
               : "border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700",
             disabled && "opacity-50 cursor-not-allowed bg-slate-50 dark:bg-slate-900/50",
-            sizeClasses[size]
+            sizeClasses[size],
+            roundedClasses[rounded]
           )}
         >
           <input
             ref={inputRef}
             id={id}
             type="text"
+            role="combobox"
+            aria-expanded={isOpen}
             disabled={disabled}
             value={displayValue}
             placeholder={placeholder}
             onChange={handleInputChange}
             onFocus={(e) => {
-              // Do NOT open on focus; only select text
               e.target.select();
             }}
             onKeyDown={handleKeyDown}
@@ -236,8 +300,9 @@ export const SelectInput = forwardRef<HTMLInputElement, SelectInputProps>(
             {clearable && activeValue && !disabled && (
               <button
                 type="button"
+                tabIndex={-1}
                 onClick={handleClear}
-                className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-full"
+                className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-full cursor-pointer"
                 title="Clear selection"
               >
                 <X className="w-3.5 h-3.5" />
@@ -247,13 +312,19 @@ export const SelectInput = forwardRef<HTMLInputElement, SelectInputProps>(
               type="button"
               tabIndex={-1}
               disabled={disabled}
-              onClick={() => {
+              onClick={(e) => {
+                e.stopPropagation();
+                e.preventDefault();
                 if (!disabled) {
-                  setIsOpen(!isOpen);
-                  inputRef.current?.focus();
+                  if (isOpen) {
+                    setIsOpen(false);
+                  } else {
+                    openDropdown();
+                  }
                 }
               }}
-              className="p-0.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
+              className="p-1 text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors cursor-pointer"
+              title="Toggle dropdown"
             >
               <ChevronDown
                 className={cn(
@@ -267,7 +338,13 @@ export const SelectInput = forwardRef<HTMLInputElement, SelectInputProps>(
 
         {/* Dropdown Options Popup */}
         {isOpen && (
-          <div className="absolute z-50 left-0 right-0 mt-1 max-h-56 overflow-y-auto rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#0c1322] shadow-2xl shadow-slate-900/15 dark:shadow-black/60 py-1 animate-in fade-in-0 zoom-in-95 duration-100">
+          <div
+            onMouseDown={(e) => {
+              // Crucial: Prevent mouse down on dropdown popup from stealing/blurring focus
+              e.preventDefault();
+            }}
+            className="absolute z-50 left-0 right-0 mt-1 max-h-56 overflow-y-auto rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#0c1322] shadow-2xl shadow-slate-900/15 dark:shadow-black/60 py-1 animate-in fade-in-0 zoom-in-95 duration-100"
+          >
             {filteredOptions.length === 0 ? (
               <div className="py-6 text-center text-xs text-slate-400">
                 No matching options found for &quot;{searchQuery}&quot;
@@ -280,9 +357,19 @@ export const SelectInput = forwardRef<HTMLInputElement, SelectInputProps>(
                 return (
                   <div
                     key={opt.value}
+                    ref={isHighlighted ? highlightedOptionRef : null}
                     role="option"
                     aria-selected={isSelected}
-                    onClick={() => handleSelectOption(opt)}
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      handleSelectOption(opt);
+                    }}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      handleSelectOption(opt);
+                    }}
                     onMouseEnter={() => setHighlightedIndex(idx)}
                     className={cn(
                       "px-3 py-2 text-xs font-medium cursor-pointer flex items-center justify-between transition-colors",

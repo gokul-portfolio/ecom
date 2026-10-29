@@ -85,6 +85,9 @@ export function ImageUpload({
           const formData = new FormData();
           formData.append("file", file);
           formData.append("folder", folder);
+          if (publicId) {
+            formData.append("previousPublicId", publicId);
+          }
 
           const response = await fetch(uploadEndpoint, {
             method: "POST",
@@ -94,11 +97,11 @@ export function ImageUpload({
           const data = await response.json();
 
           if (!response.ok || !data.success) {
-            throw new Error(data.error || "Failed to upload image to CDN.");
+            throw new Error(data.error || "Failed to upload image to Cloudinary.");
           }
 
           onChange?.(data.url, data.publicId || null);
-          toast.success("Uploaded to CDN", "Image saved and CDN asset registered.");
+          toast.success("Uploaded to Cloudinary", "Image successfully saved to Cloudinary CDN.");
         }
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : "Failed to upload image";
@@ -111,7 +114,7 @@ export function ImageUpload({
         }
       }
     },
-    [folder, maxSizeMB, onChange, onCustomUpload, toast, uploadEndpoint]
+    [folder, maxSizeMB, onChange, onCustomUpload, publicId, toast, uploadEndpoint]
   );
 
   // File input change handler
@@ -151,11 +154,24 @@ export function ImageUpload({
   };
 
   // Remove existing image
-  const handleRemove = (e: React.MouseEvent) => {
+  const handleRemove = async (e: React.MouseEvent) => {
     e.stopPropagation();
     if (disabled || isUploading) return;
+
+    const currentPublicId = publicId;
     onChange?.(null, null);
     setInternalError(null);
+
+    // Clean up asset from Cloudinary in background
+    if (currentPublicId && uploadEndpoint) {
+      try {
+        await fetch(`${uploadEndpoint}?publicId=${encodeURIComponent(currentPublicId)}`, {
+          method: "DELETE",
+        });
+      } catch {
+        // Ignored
+      }
+    }
   };
 
   const shapeClasses = {

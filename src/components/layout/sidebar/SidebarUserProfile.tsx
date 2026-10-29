@@ -113,7 +113,7 @@ export function SidebarUserProfile({ onLogout }: SidebarUserProfileProps) {
         onConfirm={handleConfirmLogout}
         isLoading={isLoggingOut}
         userName={displayName}
-        userEmail={admin?.email}
+        userEmail={admin?.email || undefined}
       />
     </div>
   );

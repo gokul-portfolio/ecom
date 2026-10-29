@@ -10,6 +10,7 @@ export interface StoreSettingsData {
   logoUrl?: string | null;
   logoPublicId?: string | null;
   faviconUrl?: string | null;
+  faviconPublicId?: string | null;
   supportEmail: string;
   supportPhone?: string | null;
   salesEmail?: string | null;

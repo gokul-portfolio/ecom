@@ -573,7 +573,7 @@ function ShiftFormContent() {
                   disabled={isSubmitting}
                   className="rounded-xl"
                 >
-                  Clear Form (F4)
+                  Clear Form
                 </Button>
               ) : (
                 <Button
@@ -596,7 +596,7 @@ function ShiftFormContent() {
                 disabled={isSubmitting || !canWriteShift}
                 className="rounded-xl shadow-xs"
               >
-                {isEditMode ? "Save Shift (Ctrl+S)" : "Create Shift (Ctrl+S)"}
+                {isEditMode ? "Save Shift" : "Create Shift"}
               </Button>
             </div>
           </form>

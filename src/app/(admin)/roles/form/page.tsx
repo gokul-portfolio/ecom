@@ -25,6 +25,7 @@ import {
 } from "lucide-react";
 import { roleSchema, roleUpdateSchema } from "@/lib/validations/role";
 import { useAdminAuth } from "@/hooks/useAdminAuth";
+import { SelectInput } from "@/components/ui/form";
 
 interface DepartmentOption {
   id: string;
@@ -456,27 +457,21 @@ function RoleFormContent() {
                   <label className="text-[11px] font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
                     Assigned Department <span className="text-rose-500">*</span>
                   </label>
-                  <select
+                  <SelectInput
+                    options={departmentsList.map((dept) => ({
+                      value: dept.id,
+                      label: `${dept.name} (${dept.code})`,
+                    }))}
                     value={departmentId}
                     disabled={isSubmitting}
+                    placeholder="Select department..."
+                    clearable={false}
+                    error={Boolean(errors.departmentId)}
                     onChange={(e) => {
                       setDepartmentId(e.target.value);
                       if (errors.departmentId) setErrors((prev) => ({ ...prev, departmentId: undefined }));
                     }}
-                    className={cn(
-                      "w-full h-10 px-3 text-xs font-medium rounded-xl border bg-slate-50/50 dark:bg-slate-900 text-slate-900 dark:text-slate-100 focus:outline-none focus:bg-white dark:focus:bg-slate-900 focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500 transition-all cursor-pointer",
-                      isSubmitting && "opacity-60 cursor-not-allowed",
-                      errors.departmentId
-                        ? "border-rose-500 focus:ring-2 focus:ring-rose-500/30 focus:border-rose-500"
-                        : "border-slate-200 dark:border-slate-800 focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500"
-                    )}
-                  >
-                    {departmentsList.map((dept) => (
-                      <option key={dept.id} value={dept.id}>
-                        {dept.name} ({dept.code})
-                      </option>
-                    ))}
-                  </select>
+                  />
                   {errors.departmentId && (
                     <p className="flex items-center gap-1.5 text-xs text-rose-500 dark:text-rose-400 font-medium mt-1">
                       <AlertCircle className="w-3.5 h-3.5 shrink-0" />
@@ -537,7 +532,7 @@ function RoleFormContent() {
                   disabled={isSubmitting}
                   className="rounded-xl"
                 >
-                  Clear Form (F4)
+                  Clear Form
                 </Button>
               ) : (
                 <Button
@@ -560,7 +555,7 @@ function RoleFormContent() {
                 disabled={isSubmitting || !canManageRoles}
                 className="rounded-xl shadow-xs"
               >
-                {isEditMode ? "Save Role (Ctrl+S)" : "Create Role (Ctrl+S)"}
+                {isEditMode ? "Save Role" : "Create Role"}
               </Button>
             </div>
           </form>

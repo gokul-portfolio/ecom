@@ -65,6 +65,7 @@ export interface DataTableProps<TData, TValue> {
   sortOrder?: "asc" | "desc";
   onSort?: (columnKey: string) => void;
   canExport?: boolean;
+  toolbarActions?: React.ReactNode;
 }
 
 export function DataTable<TData, TValue>({
@@ -82,13 +83,14 @@ export function DataTable<TData, TValue>({
   hideToolbar = false,
   searchValue,
   onSearchChange,
-  minHeight = "min-h-[360px]",
+  minHeight = "min-h-[220px] sm:min-h-[340px]",
   selectedIndex,
   onSelectRowIndex,
   sortBy,
   sortOrder,
   onSort,
   canExport = true,
+  toolbarActions,
 }: DataTableProps<TData, TValue>) {
   const [sorting, setSorting] = useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
@@ -179,7 +181,8 @@ export function DataTable<TData, TValue>({
           </div>
 
         {/* Toolbar Controls */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          {toolbarActions}
           {/* Column Visibility Dropdown */}
           <Dropdown>
             <DropdownTrigger>
@@ -255,7 +258,7 @@ export function DataTable<TData, TValue>({
       {/* Table Container */}
       <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 overflow-hidden shadow-sm">
         <div className={cn("overflow-x-auto", minHeight)}>
-          <table className="w-full text-left border-collapse">
+          <table className="w-full text-left border-collapse min-w-[580px]">
             <thead>
               {table.getHeaderGroups().map((headerGroup) => (
                 <tr
@@ -360,7 +363,7 @@ export function DataTable<TData, TValue>({
                       className={cn(
                         "transition-all duration-150",
                         isHighlighted
-                          ? "bg-slate-100/90 dark:bg-slate-800/80 font-medium"
+                          ? "bg-indigo-50/80 dark:bg-indigo-950/50 font-semibold ring-1 ring-inset ring-indigo-500/25 text-indigo-950 dark:text-indigo-100"
                           : "hover:bg-slate-50/70 dark:hover:bg-slate-800/40",
                         (onRowClick || onSelectRowIndex) && !isLoading && "cursor-pointer"
                       )}

@@ -151,7 +151,7 @@ export function DepartmentsClient({
             {row.original.name}
           </span>
           {row.original.description && (
-            <span className="text-[11px] text-slate-400 line-clamp-1 max-w-md">
+            <span className="text-[11px] text-slate-400 line-clamp-1 max-w-[170px] sm:max-w-xs md:max-w-md">
               {row.original.description}
             </span>
           )}

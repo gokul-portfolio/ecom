@@ -181,8 +181,8 @@ function SearchableSelect({
           }
         }}
         className={cn(
-          "relative w-full h-10 px-3 rounded-md border flex items-center gap-2 text-xs font-medium transition-all cursor-pointer",
-          "bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100",
+          "relative w-full h-10 px-3 rounded-xl border flex items-center gap-2 text-xs font-medium transition-all cursor-pointer",
+          "bg-slate-50/70 dark:bg-slate-900 text-slate-900 dark:text-slate-100",
           isOpen
             ? "border-indigo-500 ring-2 ring-indigo-500/20"
             : "border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700",
@@ -198,6 +198,8 @@ function SearchableSelect({
         <input
           ref={inputRef}
           type="text"
+          role="combobox"
+          aria-expanded={isOpen}
           value={displayValue}
           disabled={disabled}
           placeholder={placeholder}
@@ -221,6 +223,7 @@ function SearchableSelect({
           {(value || (isOpen && query)) && !disabled && (
             <button
               type="button"
+              tabIndex={-1}
               onClick={handleClear}
               className="p-1 rounded-md text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
             >
@@ -481,7 +484,7 @@ export function AddressInput({
               notifyChange({ street: e.target.value });
             }}
             placeholder="Flat / House no., Building, Apartment, Street"
-            className="w-full h-10 pl-9 pr-3 text-xs font-medium rounded-md border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+            className="w-full h-10 pl-9 pr-3 text-xs font-medium rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
           />
         </div>
       </div>
@@ -497,7 +500,7 @@ export function AddressInput({
             notifyChange({ street2: e.target.value });
           }}
           placeholder="Landmark, Area, Colony, Floor (Optional)"
-          className="w-full h-10 px-3.5 text-xs font-medium rounded-md border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+          className="w-full h-10 px-3.5 text-xs font-medium rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
         />
       </div>
 
@@ -542,7 +545,7 @@ export function AddressInput({
                   notifyChange({ state: e.target.value, stateName: e.target.value });
                 }}
                 placeholder="Enter state / region"
-                className="w-full h-10 pl-9 pr-3 text-xs font-medium rounded-md border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                className="w-full h-10 pl-9 pr-3 text-xs font-medium rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
               />
             </div>
           </div>
@@ -579,7 +582,7 @@ export function AddressInput({
                   notifyChange({ city: e.target.value });
                 }}
                 placeholder="Enter city name"
-                className="w-full h-10 pl-9 pr-3 text-xs font-medium rounded-md border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                className="w-full h-10 pl-9 pr-3 text-xs font-medium rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
               />
             </div>
           </div>
@@ -602,7 +605,7 @@ export function AddressInput({
                 notifyChange({ pincode: val });
               }}
               placeholder={selectedCountry === "IN" ? "e.g. 600001 (6 digits)" : "e.g. 90210"}
-              className="w-full h-10 pl-9 pr-3 text-xs font-medium rounded-md border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 font-mono"
+              className="w-full h-10 pl-9 pr-3 text-xs font-medium rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 font-mono"
             />
           </div>
         </div>
@@ -624,6 +627,7 @@ export function AddressInput({
           </div>
           <button
             type="button"
+            tabIndex={-1}
             onClick={handleCopy}
             className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 transition-colors shrink-0"
             title="Copy address"

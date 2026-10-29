@@ -52,7 +52,7 @@ export function Header() {
           onClick={() => window.dispatchEvent(new CustomEvent("toggle-shortcuts-drawer"))}
           title="Keyboard Shortcuts Cheat Sheet (F6 / F1)"
           suppressHydrationWarning
-          className="p-2 rounded-xl text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800/80 transition-colors cursor-pointer"
+          className="hidden sm:flex items-center justify-center p-2 rounded-xl text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800/80 transition-colors cursor-pointer"
           aria-label="Keyboard Shortcuts"
         >
           <Keyboard className="w-4 h-4" />

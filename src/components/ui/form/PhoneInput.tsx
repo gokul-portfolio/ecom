@@ -28,6 +28,7 @@ export interface PhoneInputProps {
   defaultCountry?: string; // ISO code like "IN", "US"
   placeholder?: string;
   size?: "sm" | "md" | "lg";
+  rounded?: "none" | "sm" | "md" | "lg" | "xl" | "full";
   disabled?: boolean;
   error?: boolean | string;
   showValidation?: boolean;
@@ -43,6 +44,7 @@ export const PhoneInput = forwardRef<HTMLInputElement, PhoneInputProps>(
       defaultCountry = "IN",
       placeholder,
       size = "md",
+      rounded = "xl",
       disabled = false,
       error,
       showValidation = true,
@@ -170,12 +172,22 @@ export const PhoneInput = forwardRef<HTMLInputElement, PhoneInputProps>(
       lg: "h-12 text-base",
     };
 
+    const roundedClasses = {
+      none: "rounded-none",
+      sm: "rounded-sm",
+      md: "rounded-md",
+      lg: "rounded-lg",
+      xl: "rounded-xl",
+      full: "rounded-full",
+    };
+
     return (
       <div ref={dropdownRef} className={cn("relative w-full text-left", className)}>
         {/* Main Phone Input Container */}
         <div
           className={cn(
-            "flex items-center w-full rounded-md border transition-all overflow-hidden bg-white dark:bg-slate-900 shadow-sm",
+            "flex items-center w-full border transition-all overflow-hidden bg-white dark:bg-slate-900 shadow-sm",
+            roundedClasses[rounded],
             error
               ? "border-rose-500 ring-2 ring-rose-500/20"
               : phoneResult.isValid && showValidation && rawNumber
@@ -187,6 +199,7 @@ export const PhoneInput = forwardRef<HTMLInputElement, PhoneInputProps>(
           {/* Country Selector Button */}
           <button
             type="button"
+            tabIndex={-1}
             disabled={disabled}
             onClick={() => !disabled && setIsOpen(!isOpen)}
             className={cn(

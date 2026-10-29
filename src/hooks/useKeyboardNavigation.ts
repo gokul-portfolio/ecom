@@ -5,14 +5,17 @@ import { useState, useEffect, useRef, useCallback, RefObject } from "react";
 /**
  * Supported focusable selectors for forms and interactive containers
  */
+/**
+ * Supported focusable selectors for forms and interactive containers
+ * Targets actual editable input fields and ignores internal action buttons
+ */
 const FOCUSABLE_SELECTORS = [
-  "input:not([type='hidden']):not([disabled]):not([readonly])",
-  "select:not([disabled]):not([readonly])",
-  "textarea:not([disabled]):not([readonly])",
-  "button:not([disabled])",
-  "[tabindex='0']:not([disabled])",
-  "[role='combobox']:not([aria-disabled='true'])",
-  "[role='button']:not([aria-disabled='true'])",
+  "input:not([type='hidden']):not([type='submit']):not([type='button']):not([disabled]):not([readonly]):not([tabindex='-1'])",
+  "select:not([disabled]):not([readonly]):not([tabindex='-1'])",
+  "textarea:not([disabled]):not([readonly]):not([tabindex='-1'])",
+  "[role='combobox']:not([aria-disabled='true']):not([tabindex='-1'])",
+  "[role='switch']:not([disabled]):not([tabindex='-1'])",
+  "button:not([disabled]):not([tabindex='-1'])",
 ].join(", ");
 
 export interface FormKeyboardNavigationOptions {
@@ -83,9 +86,15 @@ export function useFormKeyboardNavigation<T extends HTMLElement = HTMLFormElemen
     const elements = Array.from(
       containerRef.current.querySelectorAll<HTMLElement>(customSelector)
     );
-    // Filter out invisible, hidden or disabled elements
+    // Filter out invisible, hidden, disabled or tabindex="-1" elements
     return elements.filter((el) => {
-      if (el.hasAttribute("disabled") || el.getAttribute("aria-hidden") === "true") return false;
+      if (
+        el.hasAttribute("disabled") ||
+        el.getAttribute("aria-hidden") === "true" ||
+        el.getAttribute("tabindex") === "-1"
+      ) {
+        return false;
+      }
       const rect = el.getBoundingClientRect();
       if (rect.width === 0 && rect.height === 0) return false;
       const style = window.getComputedStyle(el);
@@ -101,7 +110,8 @@ export function useFormKeyboardNavigation<T extends HTMLElement = HTMLFormElemen
         (el) =>
           (el instanceof HTMLInputElement && el.type !== "hidden" && el.type !== "submit" && el.type !== "button") ||
           el instanceof HTMLSelectElement ||
-          el instanceof HTMLTextAreaElement
+          el instanceof HTMLTextAreaElement ||
+          el.getAttribute("role") === "combobox"
       ) || focusable[0];
 
     if (firstInput) {
@@ -121,7 +131,13 @@ export function useFormKeyboardNavigation<T extends HTMLElement = HTMLFormElemen
       const focusable = getFocusableElements();
       if (focusable.length === 0) return;
 
-      const currentIndex = focusable.indexOf(currentElement);
+      let currentIndex = focusable.indexOf(currentElement);
+      if (currentIndex === -1) {
+        // Fallback: match if currentElement is within focusable or vice versa
+        currentIndex = focusable.findIndex(
+          (el) => el === currentElement || el.contains(currentElement) || currentElement.contains(el)
+        );
+      }
       if (currentIndex === -1) return;
 
       let targetIndex = direction === "next" ? currentIndex + 1 : currentIndex - 1;
@@ -142,6 +158,14 @@ export function useFormKeyboardNavigation<T extends HTMLElement = HTMLFormElemen
           ["text", "number", "email", "tel"].includes(targetElement.type)
         ) {
           targetElement.select();
+        } else if (targetElement instanceof HTMLTextAreaElement) {
+          // If entering textarea going "next", place cursor at start; if going "prev", place cursor at end
+          const pos = direction === "next" ? 0 : targetElement.value.length;
+          try {
+            targetElement.setSelectionRange(pos, pos);
+          } catch {
+            // Ignore if element doesn't support selection range
+          }
         }
       }
     },
@@ -167,7 +191,10 @@ export function useFormKeyboardNavigation<T extends HTMLElement = HTMLFormElemen
         target instanceof HTMLInputElement ||
         target instanceof HTMLSelectElement ||
         target instanceof HTMLTextAreaElement ||
-        target.getAttribute("role") === "combobox";
+        target instanceof HTMLButtonElement ||
+        target.getAttribute("role") === "combobox" ||
+        target.getAttribute("role") === "switch" ||
+        target.getAttribute("role") === "button";
 
       // 1. Handle Submit on Ctrl+Enter / Cmd+Enter
       if (submitOnCtrlEnter && (e.ctrlKey || e.metaKey) && e.key === "Enter") {
@@ -187,18 +214,14 @@ export function useFormKeyboardNavigation<T extends HTMLElement = HTMLFormElemen
         return;
       }
 
-      // If key is pressed inside a textarea, respect multi-line typing unless Ctrl or Alt is held
-      if (target instanceof HTMLTextAreaElement) {
-        if (!e.ctrlKey && !e.altKey) {
-          // Allow natural typing and arrow keys inside textarea
-          return;
-        }
-      }
-
       // 3. Handle Enter Key navigation (Next Field)
       if (enableEnterNavigation && e.key === "Enter" && !e.shiftKey) {
         // Do not intercept Enter on button click or submit button
         if (target instanceof HTMLButtonElement) {
+          return;
+        }
+        // In a textarea, regular Enter creates a new line
+        if (target instanceof HTMLTextAreaElement) {
           return;
         }
         e.preventDefault();
@@ -208,24 +231,128 @@ export function useFormKeyboardNavigation<T extends HTMLElement = HTMLFormElemen
 
       // 4. Handle Shift+Enter (Previous Field)
       if (enableEnterNavigation && e.key === "Enter" && e.shiftKey) {
+        if (target instanceof HTMLButtonElement || target instanceof HTMLTextAreaElement) {
+          return;
+        }
         e.preventDefault();
         moveFocus("prev", target);
         return;
       }
 
-      // 5. Handle Arrow Keys (Down -> Next Field, Up -> Prev Field)
+      // 5. Handle Arrow Keys (Left/Right & Up/Down field switching)
       if (enableArrowKeys && isInput) {
         // If native select is active and alt is not pressed, native select uses arrows to choose options
         if (target instanceof HTMLSelectElement && !e.altKey) {
           return;
         }
 
+        const isCombobox = target.getAttribute("role") === "combobox";
+        const isComboboxOpen =
+          isCombobox &&
+          (target.getAttribute("aria-expanded") === "true" ||
+            Boolean(target.closest("[data-select-open='true']")));
+
+        // If target is inside an open combobox, let the combobox handle navigation
+        if (isComboboxOpen) {
+          return;
+        }
+
+        const isTextInput =
+          target instanceof HTMLInputElement &&
+          ["text", "email", "tel", "password", "search", "url", "number"].includes(target.type);
+
+        const isTextArea = target instanceof HTMLTextAreaElement;
+
+        // A. ArrowRight: Navigate to Next Field
+        if (e.key === "ArrowRight") {
+          let canNavigateNext = true;
+          if (isTextInput) {
+            const hasSelection =
+              target.selectionStart !== null &&
+              target.selectionEnd !== null &&
+              target.selectionStart !== target.selectionEnd;
+            const isAtEnd = target.selectionEnd === target.value.length;
+            canNavigateNext = hasSelection || isAtEnd || target.value.length === 0;
+          } else if (isTextArea) {
+            const hasSelection =
+              target.selectionStart !== null &&
+              target.selectionEnd !== null &&
+              target.selectionStart !== target.selectionEnd;
+            const isAtEnd = target.selectionEnd === target.value.length;
+            // Alt+ArrowRight or cursor at end of textarea exits to next field
+            canNavigateNext = e.altKey || hasSelection || isAtEnd || target.value.length === 0;
+          }
+          if (canNavigateNext) {
+            e.preventDefault();
+            moveFocus("next", target);
+            return;
+          }
+        }
+
+        // B. ArrowLeft: Navigate to Previous Field
+        if (e.key === "ArrowLeft") {
+          let canNavigatePrev = true;
+          if (isTextInput) {
+            const hasSelection =
+              target.selectionStart !== null &&
+              target.selectionEnd !== null &&
+              target.selectionStart !== target.selectionEnd;
+            const isAtStart = target.selectionStart === 0;
+            canNavigatePrev = hasSelection || isAtStart || target.value.length === 0;
+          } else if (isTextArea) {
+            const hasSelection =
+              target.selectionStart !== null &&
+              target.selectionEnd !== null &&
+              target.selectionStart !== target.selectionEnd;
+            const isAtStart = target.selectionStart === 0;
+            // Alt+ArrowLeft or cursor at beginning of textarea exits to previous field
+            canNavigatePrev = e.altKey || hasSelection || isAtStart || target.value.length === 0;
+          }
+          if (canNavigatePrev) {
+            e.preventDefault();
+            moveFocus("prev", target);
+            return;
+          }
+        }
+
+        // C. ArrowDown: If combobox, let combobox open & select. Otherwise move to next field
         if (e.key === "ArrowDown") {
+          if (isCombobox) {
+            return; // Let SelectInput open and navigate options
+          }
+          if (isTextArea) {
+            const isAtEnd = target.selectionEnd === target.value.length;
+            const canNavigateNext = e.altKey || isAtEnd || target.value.length === 0;
+            if (canNavigateNext) {
+              e.preventDefault();
+              moveFocus("next", target);
+              return;
+            }
+            return; // Allow natural multi-line down cursor inside textarea
+          }
           e.preventDefault();
           moveFocus("next", target);
-        } else if (e.key === "ArrowUp") {
+          return;
+        }
+
+        // D. ArrowUp: If combobox, let combobox handle. Otherwise move to previous field
+        if (e.key === "ArrowUp") {
+          if (isCombobox) {
+            return; // Let SelectInput handle
+          }
+          if (isTextArea) {
+            const isAtStart = target.selectionStart === 0;
+            const canNavigatePrev = e.altKey || isAtStart || target.value.length === 0;
+            if (canNavigatePrev) {
+              e.preventDefault();
+              moveFocus("prev", target);
+              return;
+            }
+            return; // Allow natural multi-line up cursor inside textarea
+          }
           e.preventDefault();
           moveFocus("prev", target);
+          return;
         }
       }
     },
@@ -286,8 +413,20 @@ export function useKeyboardShortcuts(
     preventDefault = true,
   } = options;
 
+  // Use refs so the listener is registered once, avoiding repeated remove/add on state changes
+  const shortcutsRef = useRef<ShortcutsMap>(shortcuts);
+  shortcutsRef.current = shortcuts;
+
+  const optionsRef = useRef(options);
+  optionsRef.current = options;
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      const currentShortcuts = shortcutsRef.current;
+      const currentOptions = optionsRef.current;
+      const enableInputs = currentOptions.enableInInputs ?? false;
+      const shouldPreventDefault = currentOptions.preventDefault ?? true;
+
       const activeEl = document.activeElement;
       const isInput =
         activeEl instanceof HTMLInputElement ||
@@ -311,29 +450,33 @@ export function useKeyboardShortcuts(
       const currentCombo = pressedKeys.join("+");
 
       // Match against registered shortcuts (supports comma-separated aliases, e.g. "ctrl+s, meta+s")
-      for (const [shortcutPattern, handler] of Object.entries(shortcuts)) {
+      for (const [shortcutPattern, handler] of Object.entries(currentShortcuts)) {
         const patterns = shortcutPattern
           .toLowerCase()
           .split(",")
           .map((p) => p.trim());
 
         const isMatch = patterns.some((p) => {
-          // Exact combo match
+          // Exact combo match (e.g. "ctrl+s", "shift+?")
           if (p === currentCombo) return true;
-          // Match single key if no modifiers needed
+          // Single key match (e.g. "escape", "f1", "f2", "f4", "f6")
           if (p === keyName && pressedKeys.length === 1) return true;
           return false;
         });
 
         if (isMatch) {
-          // If in input field, only allow if modifier was pressed or enableInInputs is explicitly true
-          const hasModifier = e.ctrlKey || e.metaKey || e.altKey || keyName.startsWith("f");
-          if (isInput && !enableInInputs && !hasModifier) {
+          const isFKey = /^f\d+$/i.test(keyName);
+          const isEscape = keyName === "escape";
+          const hasModifier = e.ctrlKey || e.metaKey || e.altKey;
+
+          // If typing in input, only fire if modifier pressed, F-key, Escape, or enableInInputs is true
+          if (isInput && !enableInputs && !hasModifier && !isFKey && !isEscape) {
             continue;
           }
 
-          if (preventDefault) {
+          if (shouldPreventDefault) {
             e.preventDefault();
+            e.stopPropagation();
           }
           handler(e);
           break;
@@ -345,12 +488,13 @@ export function useKeyboardShortcuts(
       target && "current" in target ? target.current : target || window;
 
     if (targetEl) {
-      targetEl.addEventListener("keydown", handleKeyDown as EventListener);
+      // Use capture phase to intercept native browser shortcuts (like Ctrl+S Save As) before browser dialogs appear
+      targetEl.addEventListener("keydown", handleKeyDown as EventListener, { capture: true });
       return () => {
-        targetEl.removeEventListener("keydown", handleKeyDown as EventListener);
+        targetEl.removeEventListener("keydown", handleKeyDown as EventListener, { capture: true });
       };
     }
-  }, [shortcuts, enableInInputs, target, preventDefault]);
+  }, [target]);
 }
 
 /**
@@ -434,16 +578,7 @@ export function useTableKeyboardNavigation<T>({
         target instanceof HTMLTextAreaElement ||
         target?.getAttribute("contenteditable") === "true";
 
-      // If typing in search or other inputs, allow normal typing unless Ctrl / Cmd is held
-      if (isTyping && !e.ctrlKey && !e.metaKey && !e.altKey) {
-        return;
-      }
-
-      if (data.length === 0) return;
-
-      const currentItem = data[activeIndex];
-
-      // 0. Insert / Alt+N / 'a' (when not in input) / '+' -> Add / Create New Record
+      // 0. Quick Add / Create New Record: Insert or Alt+N (available everywhere including search)
       if (
         e.key === "Insert" ||
         (e.altKey && e.key.toLowerCase() === "n") ||
@@ -455,6 +590,32 @@ export function useTableKeyboardNavigation<T>({
           return;
         }
       }
+
+      // If in search input: ArrowDown seamlessly moves focus into the table rows
+      if (isTyping && target instanceof HTMLInputElement && e.key === "ArrowDown" && !e.ctrlKey && !e.altKey) {
+        if (data.length > 0) {
+          e.preventDefault();
+          target.blur();
+          selectIndex(0);
+          return;
+        }
+      }
+
+      // If in search input: Escape blurs input to activate table navigation shortcuts
+      if (isTyping && target instanceof HTMLInputElement && e.key === "Escape") {
+        e.preventDefault();
+        target.blur();
+        return;
+      }
+
+      // If typing in search or other inputs, allow natural text entry
+      if (isTyping && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        return;
+      }
+
+      if (data.length === 0) return;
+
+      const currentItem = data[activeIndex];
 
       // 1. Arrow Down -> Next Row
       if (e.key === "ArrowDown") {

@@ -21,54 +21,93 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const admin = await prisma.adminUser.findUnique({
+    // 1. Check SuperAdmin table
+    const superAdmin = await prisma.superAdmin.findUnique({
+      where: { id: payload.adminId },
+    });
+
+    if (superAdmin) {
+      if (!superAdmin.isActive) {
+        return NextResponse.json(
+          { success: false, error: "Super admin account deactivated" },
+          { status: 403 }
+        );
+      }
+
+      return NextResponse.json({
+        success: true,
+        user: {
+          id: superAdmin.id,
+          email: superAdmin.email,
+          fullName: superAdmin.fullName,
+          phone: superAdmin.phone,
+          avatarUrl: superAdmin.avatarUrl,
+          hasCompletedOnboarding: superAdmin.hasCompletedOnboarding,
+          isSuperAdmin: true,
+          department: {
+            code: "EXECUTIVE",
+            name: "Executive Administration",
+          },
+          role: {
+            slug: "super_admin",
+            name: "Super Administrator",
+            permissions: ["*"],
+          },
+        },
+      });
+    }
+
+    // 2. Check Staff table
+    const staff = await prisma.staff.findUnique({
       where: { id: payload.adminId },
       include: {
         department: true,
         role: true,
+        shift: true,
       },
     });
 
-    if (!admin || admin.status !== "ACTIVE") {
+    if (!staff || staff.status !== "ACTIVE") {
       return NextResponse.json(
         { success: false, error: "Staff account not found or suspended" },
         { status: 403 }
       );
     }
 
-    const permissions: string[] = admin.role?.permissions
-      ? (Array.isArray(admin.role.permissions) ? (admin.role.permissions as string[]) : [])
-      : ["*"];
+    const permissions: string[] = staff.role?.permissions
+      ? Array.isArray(staff.role.permissions)
+        ? (staff.role.permissions as string[])
+        : []
+      : [];
 
     return NextResponse.json({
       success: true,
       user: {
-        id: admin.id,
-        email: admin.email,
-        fullName: admin.fullName,
-        phone: admin.phone,
-        avatarUrl: admin.avatarUrl,
-        hasCompletedOnboarding: admin.hasCompletedOnboarding,
-        department: admin.department
+        id: staff.id,
+        email: staff.email,
+        fullName: staff.fullName,
+        phone: staff.phone,
+        avatarUrl: staff.avatarUrl,
+        hasCompletedOnboarding: true,
+        isSuperAdmin: false,
+        department: staff.department
           ? {
-              code: admin.department.code,
-              name: admin.department.name,
+              code: staff.department.code,
+              name: staff.department.name,
             }
           : {
-              code: "EXECUTIVE",
-              name: "Executive Administration",
+              code: "GENERAL",
+              name: "General Staff",
             },
-        role: admin.role
+        role: staff.role
           ? {
-              slug: admin.role.slug,
-              name: admin.role.name,
-              isSystem: admin.role.isSystem,
+              slug: staff.role.slug,
+              name: staff.role.name,
               permissions,
             }
           : {
-              slug: "super_admin",
-              name: "Super Administrator",
-              isSystem: true,
+              slug: "staff",
+              name: "Staff Member",
               permissions,
             },
       },
@@ -76,7 +115,7 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     console.error("[ME_API_ERROR]", error);
     return NextResponse.json(
-      { success: false, error: "Failed to retrieve session" },
+      { success: false, error: "Failed to retrieve authentication profile" },
       { status: 500 }
     );
   }
